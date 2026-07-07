@@ -1,0 +1,43 @@
+alias k='kubectl'
+
+# Search ~/.agents/skills by name + description, e.g. `skills code` or `skills -d code`
+skills() {
+  local show_desc=0
+  if [ "$1" = "-d" ]; then
+    show_desc=1
+    shift
+  fi
+  local term="$*"
+  if [ -z "$term" ]; then
+    echo "Usage: skills [-d] <search-term>"
+    return 1
+  fi
+  find "${SKILLS_DIR:-$HOME/.agents/skills}" -mindepth 2 -maxdepth 2 -iname "SKILL.md" 2>/dev/null | \
+    xargs awk -v term="$term" -v show_desc="$show_desc" '
+      function emit() {
+        if (name == "") return
+        if (index(tolower(name " " desc), needle) > 0) {
+          if (show_desc) printf "%s — %s\n", name, desc
+          else print name
+        }
+      }
+      BEGIN { needle = tolower(term) }
+      FNR==1 {
+        if (NR>1) emit()
+        in_fm=0; name=""; desc=""; block=0
+      }
+      /^---[ \t]*$/ { in_fm++; if (in_fm==2) nextfile; next }
+      in_fm==1 {
+        if ($0 ~ /^name:[ \t]*/) {
+          name=$0; sub(/^name:[ \t]*/,"",name); gsub(/^"|"$/,"",name); block=0
+        } else if ($0 ~ /^description:[ \t]*/) {
+          desc=$0; sub(/^description:[ \t]*/,"",desc)
+          if (desc==">" || desc=="|" || desc==">-" || desc=="|-") { block=1; desc="" }
+          else { gsub(/^"|"$/,"",desc); block=0 }
+        } else if (block==1 && $0 ~ /^[ \t]+/) {
+          line=$0; sub(/^[ \t]+/,"",line); desc = (desc=="") ? line : desc " " line
+        } else { block=0 }
+      }
+      END { emit() }
+    ' | sort -u | GREP_COLOR='1;33' grep --color=auto -iF -- "$term"
+}

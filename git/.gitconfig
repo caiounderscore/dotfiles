@@ -1,0 +1,24 @@
+[user]
+	name = Caio Rodrigues
+	email = dev@caiounderscore.xyz
+
+[init]
+	defaultBranch = main
+
+[pull]
+	rebase = true
+
+[push]
+	autoSetupRemote = true
+
+[core]
+	editor = vim
+
+[color]
+	ui = auto
+
+[alias]
+	st = status
+	co = checkout
+	br = branch
+	lg = log --oneline --graph --decorate --all
