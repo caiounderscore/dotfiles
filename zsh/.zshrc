@@ -76,26 +76,45 @@ plugins=(
 )
 source $ZSH/oh-my-zsh.sh
 
-# Every color below is an explicit 256-color (8-bit) code (%F{n}) rather than
-# a basic color name (red/green/blue/...). Basic names are remapped by the
-# terminal theme (e.g. Dracula turns "blue" into a pale lavender, and "white"
-# into the same color as the default foreground) so they can look wrong or
-# invisible depending on theme. 256-color codes 16-255 aren't remapped by
-# themes, so they render identically everywhere.
-#   82  = green (success)      196 = red (failure/error)
-#   51  = cyan (path)          33  = blue (git parens)
-#   220 = yellow (dirty/slow)  213 = pink (time)
-PROMPT='%(?:%B%F{82}%1{➜%} %b%f:%B%F{196}%1{➜%} %b%f) %F{51}%c%f'
-PROMPT+=' $(git_prompt_info)'
+# Drop the "git:" label from the prompt's branch segment, e.g. "(main)" instead of "git:(main)"
+ZSH_THEME_GIT_PROMPT_PREFIX="%{$fg_bold[blue]%}(%{$fg[red]%}"
 
-ZSH_THEME_GIT_PROMPT_PREFIX="%B%F{33}%b(%F{196}"
-ZSH_THEME_GIT_PROMPT_SUFFIX="%f "
-ZSH_THEME_GIT_PROMPT_DIRTY="%F{33}) %F{220}%1{✗%}%f"
-ZSH_THEME_GIT_PROMPT_CLEAN="%F{33})%f"
+# Right prompt: last command's exit code in red (with a short description),
+# only when it failed (the left prompt's arrow already turns red on
+# success/failure); current time in grey.
+RPROMPT='${_cmd_time_display}${_exit_status_display}%F{8}%*%f'
 
-# Right prompt: last command's exit code in red, only when it failed (the
-# left prompt's arrow already turns red on success/failure); current time in pink.
-RPROMPT='${_cmd_time_display}%(?..%F{196}✗ %? %f)%F{213}%*%f'
+# _exit_status_capture renders the whole red segment itself, e.g.
+# "✗ 127 (command not found)", instead of relying on the raw %?/%(?..)
+# prompt escapes -- it must run BEFORE any other precmd hook (prepended,
+# like oh-my-zsh's own git async hook does), since reading $? is only
+# reliable as the very first thing precmd does; later hooks' internal
+# commands can silently change it before the prompt is drawn.
+typeset -gA _exit_code_desc=(
+  1   "general error"
+  2   "misuse of shell builtin"
+  126 "not executable / permission denied"
+  127 "command not found"
+  128 "invalid exit argument"
+  130 "interrupted (ctrl-c)"
+  131 "quit"
+  137 "killed"
+  139 "segmentation fault"
+  143 "terminated"
+)
+_exit_status_display=""
+
+_exit_status_capture() {
+  local ec=$?
+  if (( ec == 0 )); then
+    _exit_status_display=""
+  else
+    local desc="${_exit_code_desc[$ec]:-}"
+    [[ -z "$desc" ]] && (( ec > 128 )) && desc="signal $(( ec - 128 ))"
+    _exit_status_display="%F{red}✗ ${ec}${desc:+ ($desc)} %f"
+  fi
+}
+(( ${precmd_functions[(Ie)_exit_status_capture]} )) || precmd_functions=(_exit_status_capture $precmd_functions)
 
 # Highlight commands that take longer than 15s to run, in the right prompt.
 zmodload zsh/datetime
@@ -111,7 +130,7 @@ _cmd_timer_precmd() {
   (( _cmd_timer_start > 0 )) && elapsed=$(( EPOCHSECONDS - _cmd_timer_start ))
   _cmd_timer_start=0
   if (( elapsed > 15 )); then
-    _cmd_time_display="%F{220}⏱️  ${elapsed}s%f "
+    _cmd_time_display="%F{yellow}⏱️  ${elapsed}s%f "
   else
     _cmd_time_display=""
   fi
