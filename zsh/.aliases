@@ -1,5 +1,8 @@
 alias k='kubectl'
 
+# Restart the current shell session from scratch (fresh process, not just re-sourcing)
+alias reload='exec zsh -l'
+
 # Search ~/.agents/skills by name + description, e.g. `skills code` or `skills -d code`
 skills() {
   local show_desc=0
