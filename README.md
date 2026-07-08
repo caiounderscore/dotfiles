@@ -15,7 +15,7 @@ dotfiles/
 ├── git/
 │   └── .gitconfig       — identity (dev@caiounderscore.xyz) + aliases
 └── ghostty/
-    └── Library/Application Support/com.mitchellh.ghostty/config   — theme = Dracula
+    └── Library/Application Support/com.mitchellh.ghostty/config   — theme = Terminal Basic Dark
 ```
 
 Each top-level directory is a Stow "package" — its contents mirror the paths they should
