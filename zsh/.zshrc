@@ -81,7 +81,31 @@ ZSH_THEME_GIT_PROMPT_PREFIX="%{$fg_bold[blue]%}(%{$fg[red]%}"
 
 # Right prompt: last command's exit code in red, only when it failed (the
 # left prompt's arrow already turns red on success/failure); current time in grey.
-RPROMPT='%(?..%F{red}✗ %? %f)%F{8}%*%f'
+RPROMPT='${_cmd_time_display}%(?..%F{red}✗ %? %f)%F{8}%*%f'
+
+# Highlight commands that take longer than 15s to run, in the right prompt.
+zmodload zsh/datetime
+_cmd_timer_start=0
+_cmd_time_display=""
+
+_cmd_timer_preexec() {
+  _cmd_timer_start=$EPOCHSECONDS
+}
+
+_cmd_timer_precmd() {
+  local elapsed=0
+  (( _cmd_timer_start > 0 )) && elapsed=$(( EPOCHSECONDS - _cmd_timer_start ))
+  _cmd_timer_start=0
+  if (( elapsed > 15 )); then
+    _cmd_time_display="%F{yellow}⏱️  ${elapsed}s%f "
+  else
+    _cmd_time_display=""
+  fi
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec _cmd_timer_preexec
+add-zsh-hook precmd _cmd_timer_precmd
 
 # User configuration
 
