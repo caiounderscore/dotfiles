@@ -42,5 +42,5 @@ skills() {
         } else { block=0 }
       }
       END { emit() }
-    ' | sort -u | GREP_COLOR='1;33' grep --color=auto -iF -- "$term"
+    ' | sort -u | GREP_COLOR='38;5;213' grep --color=auto -iF -- "$term"
 }
