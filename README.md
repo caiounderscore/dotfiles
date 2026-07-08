@@ -22,9 +22,7 @@ dotfiles/
 ├── yazi/
 │   └── .config/yazi/yazi.toml   — always show hidden files
 └── claude/
-    └── .claude/commands/
-        ├── session-report.md   — /session-report slash command
-        └── reload.md           — /reload slash command
+    └── .claude/commands/session-report.md   — /session-report slash command
 ```
 
 Each top-level directory is a Stow "package" — its contents mirror the paths they should
@@ -45,10 +43,6 @@ have relative to `$HOME`.
   the end of a Claude Code session for a short, session-grounded report: concrete
   context-engineering/prompt-construction improvements (not generic advice), plus
   `/usage` output with the subscription-vs-API billing caveat spelled out.
-- `.claude/commands/reload.md` → the `/reload` slash command. A custom command can't
-  truly restart the process the way the terminal's `reload` alias does (that's `/clear`);
-  instead this re-reads CLAUDE.md/rules files, memory, and current project state
-  mid-conversation, without losing conversation history.
 
 > Not tracked yet: a `Brewfile` (Homebrew snapshot). Add later with
 > `brew bundle dump --file=$HOME/dotfiles/Brewfile` once you have packages worth pinning.
