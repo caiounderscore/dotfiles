@@ -76,6 +76,9 @@ plugins=(
 )
 source $ZSH/oh-my-zsh.sh
 
+# Drop the "git:" label from the prompt's branch segment, e.g. "(main)" instead of "git:(main)"
+ZSH_THEME_GIT_PROMPT_PREFIX="%{$fg_bold[blue]%}(%{$fg[red]%}"
+
 # User configuration
 
 # export MANPATH="/usr/local/man:$MANPATH"
