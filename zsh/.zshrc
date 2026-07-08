@@ -81,9 +81,11 @@ ZSH_THEME_GIT_PROMPT_PREFIX="%{$fg_bold[blue]%}(%{$fg[red]%}"
 
 # Right prompt: last command's exit code in red, only when it failed (the
 # left prompt's arrow already turns red on success/failure); current time in
-# magenta (basic 8-color palette; white matches the Dracula foreground and
-# blue is too pale/lavender under Dracula to read as a distinct color).
-RPROMPT='${_cmd_time_display}%(?..%F{red}✗ %? %f)%F{magenta}%*%f'
+# a fixed 256-color pink (213). Using an explicit 8-bit color instead of a
+# basic named color (red/blue/white/magenta) avoids theme remapping — Dracula
+# (and other themes) only override the basic 16 ANSI colors, not the 256-color
+# cube, so this renders the same regardless of terminal theme.
+RPROMPT='${_cmd_time_display}%(?..%F{red}✗ %? %f)%F{213}%*%f'
 
 # Highlight commands that take longer than 15s to run, in the right prompt.
 zmodload zsh/datetime
