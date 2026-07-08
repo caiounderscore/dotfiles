@@ -1,25 +1,27 @@
-# Classic green-phosphor CRT terminal look (VT100-style), instead of a themed
-# palette like Dracula. Only the base 16 ANSI colors are remapped to shades of
-# green; the extended 256-color cube (16-255) is left at Ghostty's standard
-# default so tools relying on it still render normally.
+# "Phosphor-glow cyberpunk archaeology": an unlit CRT tube (true black, not
+# Dracula's painted dark blue-grey) running vivid, modern Dracula colors.
+# Green is the default phosphor trace (foreground/cursor); the rest of
+# Dracula's real palette reads as status-LED/oscilloscope signal accents
+# glowing against the void, cinema-grading style (deep black + neon accents).
 background = #000000
-foreground = #33ff33
-cursor-color = #33ff33
+foreground = #50fa7b
+cursor-color = #50fa7b
 cursor-text = #000000
+selection-background = #44475a
 
-palette = 0=#000000
-palette = 1=#1a661a
-palette = 2=#33cc33
-palette = 3=#4dff4d
-palette = 4=#1a661a
-palette = 5=#33cc33
-palette = 6=#4dff4d
-palette = 7=#33ff33
-palette = 8=#003300
-palette = 9=#33cc33
-palette = 10=#4dff4d
-palette = 11=#66ff66
-palette = 12=#33cc33
-palette = 13=#4dff4d
-palette = 14=#66ff66
-palette = 15=#99ff99
+palette = 0=#21222c
+palette = 1=#ff5555
+palette = 2=#50fa7b
+palette = 3=#f1fa8c
+palette = 4=#bd93f9
+palette = 5=#ff79c6
+palette = 6=#8be9fd
+palette = 7=#f8f8f2
+palette = 8=#6272a4
+palette = 9=#ff6e6e
+palette = 10=#69ff94
+palette = 11=#ffffa5
+palette = 12=#d6acff
+palette = 13=#ff92df
+palette = 14=#a4ffff
+palette = 15=#ffffff
