@@ -11,11 +11,18 @@ file here directly, since it's a symlink back to this repo.
 dotfiles/
 ├── zsh/
 │   ├── .zshrc
-│   └── .aliases
+│   ├── .aliases
+│   └── .exports
 ├── git/
 │   └── .gitconfig       — identity (dev@caiounderscore.xyz) + aliases
-└── ghostty/
-    └── Library/Application Support/com.mitchellh.ghostty/config   — theme = Terminal Basic Dark
+├── ghostty/
+│   └── Library/Application Support/com.mitchellh.ghostty/config
+├── vim/
+│   └── .vimrc           — syntax highlighting on
+├── yazi/
+│   └── .config/yazi/yazi.toml   — always show hidden files
+└── claude/
+    └── .claude/commands/session-report.md   — /session-report slash command
 ```
 
 Each top-level directory is a Stow "package" — its contents mirror the paths they should
@@ -24,10 +31,18 @@ have relative to `$HOME`.
 ## `.aliases` contents
 
 - `k` → `kubectl`
+- `reload` → `exec zsh -l`, restarts the shell session from scratch
 - `skills [-d] <term>` → searches `~/.agents/skills/*/SKILL.md` frontmatter (name +
   description) and prints matching skill names, highlighting the matched term. Add `-d`
   to also print each match's description. Override the search directory per-machine with
   `SKILLS_DIR`. No-ops quietly if the directory doesn't exist.
+
+## `claude/` contents
+
+- `.claude/commands/session-report.md` → the `/session-report` slash command. Run it at
+  the end of a Claude Code session for a short, session-grounded report: concrete
+  context-engineering/prompt-construction improvements (not generic advice), plus
+  `/usage` output with the subscription-vs-API billing caveat spelled out.
 
 > Not tracked yet: a `Brewfile` (Homebrew snapshot). Add later with
 > `brew bundle dump --file=$HOME/dotfiles/Brewfile` once you have packages worth pinning.
@@ -59,7 +74,7 @@ git clone git@github.com:<you>/dotfiles.git ~/dotfiles
 
 # 3. Symlink every package into $HOME
 cd ~/dotfiles
-stow -t "$HOME" zsh git ghostty
+stow -t "$HOME" zsh git ghostty vim yazi claude
 ```
 
 If a target file already exists (e.g. a fresh macOS install's default `.zshrc`), move or
