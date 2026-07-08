@@ -104,9 +104,8 @@ source $ZSH/oh-my-zsh.sh
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-export PATH="$HOME/.local/bin:$PATH"
+[ -f "$HOME/.exports" ] && source "$HOME/.exports"
 
-export NVM_DIR="$HOME/.nvm"
 # Lazy-load nvm: sourcing nvm.sh eagerly adds ~800ms to every shell startup.
 # These stubs load it on first real use, then hand off to the real command.
 _nvm_lazy_load() {
