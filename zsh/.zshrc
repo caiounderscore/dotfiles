@@ -81,8 +81,9 @@ ZSH_THEME_GIT_PROMPT_PREFIX="%{$fg_bold[blue]%}(%{$fg[red]%}"
 
 # Right prompt: last command's exit code in red, only when it failed (the
 # left prompt's arrow already turns red on success/failure); current time in
-# plain white (basic 8-color palette, not a 256-color grey).
-RPROMPT='${_cmd_time_display}%(?..%F{red}✗ %? %f)%F{white}%*%f'
+# blue (basic 8-color palette; white looks identical to the default foreground
+# on Dracula, so it isn't used here).
+RPROMPT='${_cmd_time_display}%(?..%F{red}✗ %? %f)%F{blue}%*%f'
 
 # Highlight commands that take longer than 15s to run, in the right prompt.
 zmodload zsh/datetime
