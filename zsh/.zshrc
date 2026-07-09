@@ -86,8 +86,14 @@ source $ZSH/oh-my-zsh.sh
 #   51  = cyan (path)          33  = blue (git parens)
 #   220 = yellow (dirty/slow)  213 = pink (time)
 
-PROMPT='%(?:%B%F{82}%1{➜%} %b%f:%B%F{196}%1{➜%} %b%f) %F{51}%c%f'
-PROMPT+=' $(git_prompt_info)'
+# Two-line prompt. Line 1: cyan current dir + git info (context). Line 2: a
+# clean input line — clock (🕒 HH:MM:SS), then the slow-command timer (only
+# after a >15s command, in yellow), then ❯, which turns green on success / red
+# on the previous command's failure (the exit-status signal the old ➜ carried).
+# 🕒 is a wide (2-cell) glyph, so it's wrapped in %2{…%} for correct width calc.
+PROMPT='%F{51}%c%f $(git_prompt_info)'
+PROMPT+=$'\n'
+PROMPT+='%2{🕒%} %F{213}%*%f ${_cmd_time_display}%(?:%B%F{82}:%B%F{196})%1{❯%}%b%f '
 
 # Drop the "git:" label from the prompt's branch segment, e.g. "(main)" instead of "git:(main)"
 ZSH_THEME_GIT_PROMPT_PREFIX="%B%F{33}%b(%F{196}"
@@ -95,10 +101,10 @@ ZSH_THEME_GIT_PROMPT_SUFFIX="%f "
 ZSH_THEME_GIT_PROMPT_DIRTY="%F{33}) %F{220}%1{✗%}%f"
 ZSH_THEME_GIT_PROMPT_CLEAN="%F{33})%f"
 
-# Right prompt: last command's exit code in red (with a short description),
-# only when it failed (the left prompt's arrow already turns red on
-# success/failure); current time in pink.
-RPROMPT='${_cmd_time_display}${_exit_status_display}%F{213}%*%f'
+# Right prompt (attaches to line 1): the previous command's exit code in red
+# with a short description — only when it failed (the ❯ on line 2 already turns
+# red on failure). The clock and the slow-command timer now live on line 2.
+RPROMPT='${_exit_status_display}'
 
 # _exit_status_capture renders the whole red segment itself, e.g.
 # "✗ 127 (command not found)", instead of relying on the raw %?/%(?..)
@@ -132,7 +138,8 @@ _exit_status_capture() {
 }
 (( ${precmd_functions[(Ie)_exit_status_capture]} )) || precmd_functions=(_exit_status_capture $precmd_functions)
 
-# Highlight commands that take longer than 15s to run, in the right prompt.
+# Highlight commands that take longer than 15s to run, inline on the input line
+# (line 2 of the prompt), between the clock and the ❯.
 zmodload zsh/datetime
 _cmd_timer_start=0
 _cmd_time_display=""
