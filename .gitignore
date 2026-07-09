@@ -4,6 +4,7 @@
 # Per-machine, never-shared overrides (the .example templates ARE tracked).
 .zshrc.local
 .gitconfig-work
+settings.local.json
 
 # Secrets — belt-and-suspenders against an accidental commit.
 *.pem

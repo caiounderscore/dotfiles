@@ -13,6 +13,9 @@ brew "nvm"
 # Kubernetes CLI (aliased to `k`)
 brew "kubectl"
 
+# Used by the Claude Code statusLine command
+brew "jq"
+
 # Containers without Docker Desktop (see README "Containers")
 brew "colima"
 
