@@ -197,8 +197,17 @@ add-zsh-hook precmd _cmd_timer_precmd
 # These stubs load it on first real use, then hand off to the real command.
 _nvm_lazy_load() {
   unset -f nvm node npm npx corepack
-  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+  mkdir -p "$NVM_DIR"
+  # nvm.sh lives in $NVM_DIR with the official installer, but under the Homebrew
+  # prefix when installed via `brew install nvm` (which is what the Brewfile
+  # does). Source whichever exists — covers Apple Silicon and Intel brew paths.
+  local d
+  for d in "$NVM_DIR" /opt/homebrew/opt/nvm /usr/local/opt/nvm; do
+    [ -s "$d/nvm.sh" ] && { \. "$d/nvm.sh"; break; }
+  done
+  for d in "$NVM_DIR/bash_completion" /opt/homebrew/opt/nvm/etc/bash_completion.d/nvm /usr/local/opt/nvm/etc/bash_completion.d/nvm; do
+    [ -s "$d" ] && { \. "$d"; break; }
+  done
 }
 nvm() { _nvm_lazy_load; nvm "$@"; }
 node() { _nvm_lazy_load; node "$@"; }
