@@ -85,15 +85,13 @@ source $ZSH/oh-my-zsh.sh
 #   82  = green (success)      196 = red (failure/error)
 #   51  = cyan (path)          33  = blue (git parens)
 #   220 = yellow (dirty/slow)  213 = pink (time)
+#   68  = steel blue (kube context)
 
-# Two-line prompt. Line 1: cyan current dir + git info (context). Line 2: a
-# clean input line — clock (🕒 HH:MM:SS), then the slow-command timer (only
-# after a >15s command, in yellow), then ❯, which turns green on success / red
-# on the previous command's failure (the exit-status signal the old ➜ carried).
-# 🕒 is a wide (2-cell) glyph, so it's wrapped in %2{…%} for correct width calc.
+# Two-line prompt. Line 1: cyan current dir + git info (context). Line 2: the
+# ➜ arrow, green on success / red on the previous command's failure.
 PROMPT='%F{51}%c%f $(git_prompt_info)'
 PROMPT+=$'\n'
-PROMPT+='%2{🕒%} %F{213}%*%f ${_cmd_time_display}%(?:%B%F{82}:%B%F{196})%1{❯%}%b%f '
+PROMPT+='%(?:%B%F{82}%1{➜%} %b%f:%B%F{196}%1{➜%} %b%f)'
 
 # Drop the "git:" label from the prompt's branch segment, e.g. "(main)" instead of "git:(main)"
 ZSH_THEME_GIT_PROMPT_PREFIX="%B%F{33}%b(%F{196}"
@@ -101,10 +99,12 @@ ZSH_THEME_GIT_PROMPT_SUFFIX="%f "
 ZSH_THEME_GIT_PROMPT_DIRTY="%F{33}) %F{220}%1{✗%}%f"
 ZSH_THEME_GIT_PROMPT_CLEAN="%F{33})%f"
 
-# Right prompt (attaches to line 1): the previous command's exit code in red
-# with a short description — only when it failed (the ❯ on line 2 already turns
-# red on failure). The clock and the slow-command timer now live on line 2.
-RPROMPT='${_exit_status_display}'
+# Right prompt (attaches to line 1): current kubectl context (e.g. "k:colima",
+# so you always know which cluster kubectl/`k` is pointed at); last command's
+# exit code in red (with a short description), only when it failed (the ➜ on
+# line 2 already turns red on success/failure); current time in pink;
+# slow-command timer if >15s.
+RPROMPT='${_kube_context_display}${_cmd_time_display}${_exit_status_display}%F{213}%*%f'
 
 # _exit_status_capture renders the whole red segment itself, e.g.
 # "✗ 127 (command not found)", instead of relying on the raw %?/%(?..)
@@ -138,8 +138,7 @@ _exit_status_capture() {
 }
 (( ${precmd_functions[(Ie)_exit_status_capture]} )) || precmd_functions=(_exit_status_capture $precmd_functions)
 
-# Highlight commands that take longer than 15s to run, inline on the input line
-# (line 2 of the prompt), between the clock and the ❯.
+# Highlight commands that take longer than 15s to run, in the right prompt.
 zmodload zsh/datetime
 _cmd_timer_start=0
 _cmd_time_display=""
@@ -162,6 +161,29 @@ _cmd_timer_precmd() {
 autoload -Uz add-zsh-hook
 add-zsh-hook preexec _cmd_timer_preexec
 add-zsh-hook precmd _cmd_timer_precmd
+
+# Current kubectl context in the right prompt. Reads current-context directly
+# out of the kubeconfig file (skips shelling out to `kubectl`, which adds
+# ~100ms+ per prompt) and only re-parses it when the file's mtime changes.
+_kube_context_display=""
+_kube_config_mtime=0
+
+_kube_context_update() {
+  local kubeconfig="${KUBECONFIG:-$HOME/.kube/config}"
+  [[ -f "$kubeconfig" ]] || { _kube_context_display=""; return }
+  local mtime
+  mtime=$(stat -f %m "$kubeconfig" 2>/dev/null)
+  [[ "$mtime" == "$_kube_config_mtime" ]] && return
+  _kube_config_mtime="$mtime"
+  local ctx
+  ctx=$(awk -F': ' '/^current-context:/{print $2; exit}' "$kubeconfig")
+  if [[ -n "$ctx" ]]; then
+    _kube_context_display="%F{68}k:${ctx}%f "
+  else
+    _kube_context_display=""
+  fi
+}
+add-zsh-hook precmd _kube_context_update
 
 # User configuration
 
