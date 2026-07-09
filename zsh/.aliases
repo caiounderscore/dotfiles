@@ -1,29 +1,43 @@
 alias k='kubectl'
 
-# Kubernetes environment shortcuts. sandbox/dev/prod are placeholders until
-# real clusters get added to kubeconfig; local defaults to the real Colima
-# k3s context. Override per machine in .zshrc.local, e.g.
-# `export K8S_PROD_CONTEXT=my-real-prod-context`.
+# Kubernetes environment shortcuts. dev/prod context names are placeholders
+# until real clusters get added to kubeconfig; local defaults to the real
+# Colima k3s context. sandbox uses its own kubeconfig file rather than a
+# context in the default one — its cluster/context/user names are the generic
+# kubeadm defaults ("kubernetes-admin@kubernetes"), which collide with any
+# other kubeadm-provisioned cluster's names, so it can't be safely merged in.
+# Override per machine in .zshrc.local, e.g. `export K8S_PROD_CONTEXT=my-real-prod-context`.
 : ${K8S_LOCAL_CONTEXT:=colima}
-: ${K8S_SANDBOX_CONTEXT:=sandbox}
+: ${K8S_SANDBOX_KUBECONFIG:=$HOME/.kube/config-remote}
 : ${K8S_DEV_CONTEXT:=dev}
 : ${K8S_PROD_CONTEXT:=prod}
 
 # Low-risk environments: switch kubectl's current-context for the rest of the
 # session (convenience), then optionally run a command against it right away.
+# Reset KUBECONFIG first in case a prior `ksandbox` call left it pointed at
+# the sandbox kubeconfig file — local/dev must always target the default one.
 klocal() {
+  unset KUBECONFIG
   kubectl config use-context "$K8S_LOCAL_CONTEXT" || return 1
   echo "Switched to local (${K8S_LOCAL_CONTEXT})"
   [ $# -eq 0 ] && return 0
   kubectl "$@"
 }
+# Sandbox is a separate kubeconfig file (see comment above), so "switching" to
+# it means pointing KUBECONFIG at that file for the rest of the session,
+# rather than a use-context call against the default kubeconfig.
 ksandbox() {
-  kubectl config use-context "$K8S_SANDBOX_CONTEXT" || return 1
-  echo "Switched to sandbox (${K8S_SANDBOX_CONTEXT})"
+  if [ ! -f "$K8S_SANDBOX_KUBECONFIG" ]; then
+    echo "ksandbox: kubeconfig not found at $K8S_SANDBOX_KUBECONFIG" >&2
+    return 1
+  fi
+  export KUBECONFIG="$K8S_SANDBOX_KUBECONFIG"
+  echo "Switched to sandbox (using $K8S_SANDBOX_KUBECONFIG)"
   [ $# -eq 0 ] && return 0
   kubectl "$@"
 }
 kdev() {
+  unset KUBECONFIG
   kubectl config use-context "$K8S_DEV_CONTEXT" || return 1
   echo "Switched to dev (${K8S_DEV_CONTEXT})"
   [ $# -eq 0 ] && return 0
@@ -55,7 +69,9 @@ kprod() {
       return 1
     fi
   fi
-  kubectl --context="$K8S_PROD_CONTEXT" "$@"
+  # Explicit --kubeconfig, ignoring any KUBECONFIG left set by ksandbox — prod
+  # must never silently resolve against the wrong file.
+  kubectl --kubeconfig="$HOME/.kube/config" --context="$K8S_PROD_CONTEXT" "$@"
 }
 
 # Restart the current shell session from scratch (fresh process, not just re-sourcing)

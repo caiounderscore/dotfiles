@@ -34,14 +34,19 @@ have relative to `$HOME`.
 ## `.aliases` contents
 
 - `k` → `kubectl`
-- `klocal`/`ksandbox`/`kdev` → switch kubectl's current-context to the local
-  (Colima)/sandbox/dev cluster (convenience, low risk), then optionally run a command
-  against it. `kprod` → never switches current-context — every call is a one-off
-  `--context=prod`, and mutating verbs (`delete`, `apply`, `scale`, …) require typing
-  `yes` first. sandbox/dev/prod context names are placeholders
-  (`K8S_SANDBOX_CONTEXT`/`K8S_DEV_CONTEXT`/`K8S_PROD_CONTEXT`) — override in
-  `.zshrc.local` once real clusters exist; `klocal` already points at the real
-  `colima` context.
+- `klocal`/`kdev` → switch kubectl's current-context to the local (Colima)/dev cluster
+  (convenience, low risk), then optionally run a command against it. `dev`/`prod` context
+  names are placeholders (`K8S_DEV_CONTEXT`/`K8S_PROD_CONTEXT`) — override in
+  `.zshrc.local` once real clusters exist; `klocal` already points at the real `colima`
+  context. `ksandbox` → points `KUBECONFIG` at a separate kubeconfig file
+  (`K8S_SANDBOX_KUBECONFIG`, default `~/.kube/config-remote`) for the rest of the session,
+  rather than a context in the default kubeconfig — a kubeadm-provisioned cluster's
+  context/cluster/user names are the generic defaults (`kubernetes-admin@kubernetes`),
+  which collide with any other kubeadm cluster's names, so it can't be merged in safely.
+  `kprod` → never switches current-context — every call is an explicit
+  `--kubeconfig=~/.kube/config --context=prod` (immune to a `KUBECONFIG` left set by
+  `ksandbox`), and mutating verbs (`delete`, `apply`, `scale`, …) require typing `yes`
+  first. `klocal`/`kdev` also reset `KUBECONFIG` first for the same reason.
 - `reload` → `exec zsh -l`, restarts the shell session from scratch
 - `docker` → `nerdctl`, `docker-compose` → `nerdctl compose` — drop-in Docker CLI
   compatibility on top of Colima (see "Containers" below)
