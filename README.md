@@ -23,6 +23,8 @@ dotfiles/
 │   └── .config/yazi/yazi.toml   — always show hidden files
 ├── claude/
 │   └── .claude/commands/session-report.md   — /session-report slash command
+├── Brewfile             — `brew bundle` package list (stow, kubectl, colima, ghostty, …)
+└── bootstrap.sh         — idempotent new-machine setup
 └── Brewfile             — `brew bundle` package list (currently: colima, kubectl)
 ```
 
@@ -74,10 +76,20 @@ and swaps in its own port-forwarding cloud-controller-manager in place of
 
 ## `claude/` contents
 
-- `.claude/commands/session-report.md` → the `/session-report` slash command. Run it at
-  the end of a Claude Code session for a short, session-grounded report: concrete
-  context-engineering/prompt-construction improvements (not generic advice), plus
-  `/usage` output with the subscription-vs-API billing caveat spelled out.
+Portable Claude Code config so the agent behaves the same on every machine (same
+profile, same model/effort, same slash commands) instead of falling back to generic
+defaults:
+
+- `.claude/CLAUDE.md` → global profile: role, answer preferences (trade-offs, challenge
+  assumptions, production-oriented), ADR conventions, and language-coaching rules.
+- `.claude/settings.json` → `model`, `effortLevel=high`, and the `statusLine` (needs `jq`,
+  in the Brewfile). These drive how thorough/assertive the agent is, independent of
+  `CLAUDE.md`.
+- `.claude/hooks/lang-warmup.sh` → the bilingual (English/German) SessionStart warm-up.
+- `.claude/settings.local.json.example` → template that wires the warm-up hook in. The
+  hook is **not** in the shared `settings.json` — it's opt-in per machine (see below).
+- `.claude/commands/session-report.md`, `reload.md` → the `/session-report` and `/reload`
+  slash commands.
 
 ## Daily use
 
@@ -98,16 +110,17 @@ stow -d ~/dotfiles -t "$HOME" <package-name>
 ## Set up on a new machine
 
 ```sh
-# 1. Install stow
-brew install stow   # or your distro's package manager
-
-# 2. Clone this repo
 git clone git@github.com:<you>/dotfiles.git ~/dotfiles
-
-# 3. Symlink every package into $HOME
 cd ~/dotfiles
-stow -t "$HOME" zsh git ghostty vim yazi claude
+./bootstrap.sh
+```
 
+`bootstrap.sh` is idempotent (safe to re-run). It installs Homebrew if missing, runs the
+Brewfile, installs oh-my-zsh + the `zsh-autosuggestions` plugin that `.zshrc` expects, and
+stows every package. Then finish containers manually:
+
+```sh
+colima start --runtime containerd
 # 4. Install everything in the Brewfile (currently: colima, kubectl)
 brew bundle --file=~/dotfiles/Brewfile
 
@@ -119,3 +132,18 @@ colima nerdctl install --path ~/.local/bin/nerdctl
 
 If a target file already exists (e.g. a fresh macOS install's default `.zshrc`), move or
 remove it first — `stow` refuses to overwrite existing files, only broken symlinks.
+
+## Per-machine / work overrides
+
+Shared config lives in the repo; anything machine- or employer-specific stays **untracked**
+(`.example` templates are provided and version-controlled):
+
+- **`~/.zshrc.local`** — sourced last by `.zshrc`. Proxy, corp `PATH`, work `KUBECONFIG`,
+  etc. Copy from `zsh/.zshrc.local.example`.
+- **`~/.gitconfig-work`** — work git identity. Auto-activated for any repo under `~/work/`
+  via an `includeIf` rule in `.gitconfig`, so work commits use your work email while
+  everything else stays personal. Copy from `git/.gitconfig-work.example`.
+- **`~/.claude/settings.local.json`** — enables the bilingual warm-up on this machine.
+  Copy from `claude/.claude/settings.local.json.example` on personal machines; leave it
+  out on the work laptop. If the file already exists (e.g. permissions), merge in the
+  `hooks` block rather than overwriting.

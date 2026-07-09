@@ -1,0 +1,8 @@
+# Copy to ~/.zshrc.local for machine/employer-specific settings that must NOT
+# live in the shared repo. Sourced last by .zshrc, so it overrides everything.
+# Untracked (see .gitignore).
+#
+# export HTTP_PROXY=http://proxy.corp:8080
+# export HTTPS_PROXY=$HTTP_PROXY
+# export KUBECONFIG=$HOME/.kube/work-config
+# export PATH="$HOME/company-tools/bin:$PATH"

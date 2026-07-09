@@ -200,3 +200,7 @@ npx() { _nvm_lazy_load; npx "$@"; }
 corepack() { _nvm_lazy_load; corepack "$@"; }
 
 [ -f "$HOME/.aliases" ] && source "$HOME/.aliases"
+
+# Per-machine overrides (proxy, corp PATH, work KUBECONFIG, etc.). Untracked —
+# sourced last so it wins. See .zshrc.local.example.
+[ -f "$HOME/.zshrc.local" ] && source "$HOME/.zshrc.local"
