@@ -1,3 +1,13 @@
+# Homebrew: puts /opt/homebrew/bin (Apple Silicon) or /usr/local/bin (Intel) on
+# PATH. Without this, everything installed via the Brewfile (kubectl, colima,
+# stow, jq, yazi, ...) is invisible to the shell — kdev/klocal/k etc. all fail
+# with "command not found: kubectl" regardless of kube-context.
+if [ -x /opt/homebrew/bin/brew ]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x /usr/local/bin/brew ]; then
+  eval "$(/usr/local/bin/brew shellenv)"
+fi
+
 export PATH="$HOME/.local/bin:$PATH"
 export NVM_DIR="$HOME/.nvm"
 export CLAUDE_CODE_DISABLE_MOUSE_CLICKS=0
