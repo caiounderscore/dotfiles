@@ -1,5 +1,63 @@
 alias k='kubectl'
 
+# Kubernetes environment shortcuts. sandbox/dev/prod are placeholders until
+# real clusters get added to kubeconfig; local defaults to the real Colima
+# k3s context. Override per machine in .zshrc.local, e.g.
+# `export K8S_PROD_CONTEXT=my-real-prod-context`.
+: ${K8S_LOCAL_CONTEXT:=colima}
+: ${K8S_SANDBOX_CONTEXT:=sandbox}
+: ${K8S_DEV_CONTEXT:=dev}
+: ${K8S_PROD_CONTEXT:=prod}
+
+# Low-risk environments: switch kubectl's current-context for the rest of the
+# session (convenience), then optionally run a command against it right away.
+klocal() {
+  kubectl config use-context "$K8S_LOCAL_CONTEXT" || return 1
+  echo "Switched to local (${K8S_LOCAL_CONTEXT})"
+  [ $# -eq 0 ] && return 0
+  kubectl "$@"
+}
+ksandbox() {
+  kubectl config use-context "$K8S_SANDBOX_CONTEXT" || return 1
+  echo "Switched to sandbox (${K8S_SANDBOX_CONTEXT})"
+  [ $# -eq 0 ] && return 0
+  kubectl "$@"
+}
+kdev() {
+  kubectl config use-context "$K8S_DEV_CONTEXT" || return 1
+  echo "Switched to dev (${K8S_DEV_CONTEXT})"
+  [ $# -eq 0 ] && return 0
+  kubectl "$@"
+}
+
+# Production: never switches current-context (so a later bare `k`/`kubectl`
+# can't silently land on prod) — every call is a one-off --context=prod, and
+# mutating verbs require typing "yes" first. Verb detection assumes the verb
+# is $1 (e.g. `kprod delete pod x -n foo`); global flags before the verb
+# (e.g. `kprod -n foo delete ...`) aren't recognized as mutating.
+typeset -ga _k8s_mutating_verbs=(
+  apply delete scale patch replace edit create expose set autoscale
+  cordon drain uncordon taint label annotate exec rollout
+)
+
+kprod() {
+  if [ $# -eq 0 ]; then
+    echo "Usage: kprod <kubectl-args...>"
+    return 1
+  fi
+  local verb="$1"
+  if (( ${_k8s_mutating_verbs[(Ie)$verb]} )); then
+    printf '\033[1;31m⚠️  PRODUCTION (%s): about to run `kubectl %s`\033[0m\n' "$K8S_PROD_CONTEXT" "$*"
+    printf 'Type "yes" to continue: '
+    read confirm
+    if [ "$confirm" != "yes" ]; then
+      echo "Aborted."
+      return 1
+    fi
+  fi
+  kubectl --context="$K8S_PROD_CONTEXT" "$@"
+}
+
 # Restart the current shell session from scratch (fresh process, not just re-sourcing)
 alias reload='exec zsh -l'
 

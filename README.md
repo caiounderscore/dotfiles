@@ -34,6 +34,14 @@ have relative to `$HOME`.
 ## `.aliases` contents
 
 - `k` → `kubectl`
+- `klocal`/`ksandbox`/`kdev` → switch kubectl's current-context to the local
+  (Colima)/sandbox/dev cluster (convenience, low risk), then optionally run a command
+  against it. `kprod` → never switches current-context — every call is a one-off
+  `--context=prod`, and mutating verbs (`delete`, `apply`, `scale`, …) require typing
+  `yes` first. sandbox/dev/prod context names are placeholders
+  (`K8S_SANDBOX_CONTEXT`/`K8S_DEV_CONTEXT`/`K8S_PROD_CONTEXT`) — override in
+  `.zshrc.local` once real clusters exist; `klocal` already points at the real
+  `colima` context.
 - `reload` → `exec zsh -l`, restarts the shell session from scratch
 - `docker` → `nerdctl`, `docker-compose` → `nerdctl compose` — drop-in Docker CLI
   compatibility on top of Colima (see "Containers" below)
