@@ -1,2 +1,14 @@
 .DS_Store
 *.swp
+
+# Per-machine, never-shared overrides (the .example templates ARE tracked).
+.zshrc.local
+.gitconfig-work
+
+# Secrets — belt-and-suspenders against an accidental commit.
+*.pem
+*.key
+.env
+.env.*
+id_rsa
+id_ed25519
