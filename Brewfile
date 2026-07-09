@@ -2,3 +2,4 @@
 # lima is pulled in automatically as colima's dependency.
 
 brew "colima"
+brew "kubectl"

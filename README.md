@@ -23,7 +23,7 @@ dotfiles/
 │   └── .config/yazi/yazi.toml   — always show hidden files
 ├── claude/
 │   └── .claude/commands/session-report.md   — /session-report slash command
-└── Brewfile             — `brew bundle` package list (currently: colima)
+└── Brewfile             — `brew bundle` package list (currently: colima, kubectl)
 ```
 
 Each top-level directory is a Stow "package" — its contents mirror the paths they should
@@ -40,19 +40,20 @@ have relative to `$HOME`.
   to also print each match's description. Override the search directory per-machine with
   `SKILLS_DIR`. No-ops quietly if the directory doesn't exist.
 
-## Containers (Colima + nerdctl)
+## Containers + local Kubernetes (Colima + nerdctl + k3s)
 
 No Docker Desktop — containers run through [Colima](https://github.com/abiosoft/colima)
 (a Lima-based Linux VM) using `containerd` as the runtime, driven via
 [nerdctl](https://github.com/containerd/nerdctl). `nerdctl` has a built-in `compose`
-subcommand, so no separate `docker-compose` binary is needed.
+subcommand, so no separate `docker-compose` binary is needed. `--kubernetes` provisions
+a single-node [k3s](https://k3s.io/) cluster inside the same VM for local testing.
 
 ```sh
 # 1. Install (Brewfile below)
 brew bundle --file=~/dotfiles/Brewfile
 
-# 2. Start the VM with the containerd runtime
-colima start --runtime containerd
+# 2. Start the VM: containerd runtime + a local k3s cluster
+colima start --runtime containerd --kubernetes
 
 # 3. One-time per machine: install a `nerdctl` alias script that talks to
 #    Colima's containerd socket, without touching /usr/local/bin (no sudo needed)
@@ -63,6 +64,13 @@ colima nerdctl install --path ~/.local/bin/nerdctl
 Colima is started manually (`colima start`) rather than as a login service — stop it
 with `colima stop` when you're done. `docker`/`docker-compose` in `.aliases` then just
 work against it.
+
+Colima writes a `colima` context into `~/.kube/config` and activates it automatically
+(`kubectl config current-context` → `colima`), so `kubectl`/`k` already point at the
+local cluster with no extra setup — unless/until other clusters get added to the
+kubeconfig, nothing more is needed. Note: Colima always disables k3s's bundled Traefik
+and swaps in its own port-forwarding cloud-controller-manager in place of
+`servicelb` — CoreDNS, local-path storage, and metrics-server stay on.
 
 ## `claude/` contents
 
@@ -100,11 +108,11 @@ git clone git@github.com:<you>/dotfiles.git ~/dotfiles
 cd ~/dotfiles
 stow -t "$HOME" zsh git ghostty vim yazi claude
 
-# 4. Install everything in the Brewfile (currently: colima)
+# 4. Install everything in the Brewfile (currently: colima, kubectl)
 brew bundle --file=~/dotfiles/Brewfile
 
-# 5. Set up containers — see "Containers" above
-colima start --runtime containerd
+# 5. Set up containers + local Kubernetes — see "Containers" above
+colima start --runtime containerd --kubernetes
 mkdir -p ~/.local/bin
 colima nerdctl install --path ~/.local/bin/nerdctl
 ```
