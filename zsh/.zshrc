@@ -220,3 +220,8 @@ corepack() { _nvm_lazy_load; corepack "$@"; }
 # Per-machine overrides (proxy, corp PATH, work KUBECONFIG, etc.). Untracked —
 # sourced last so it wins. See .zshrc.local.example.
 [ -f "$HOME/.zshrc.local" ] && source "$HOME/.zshrc.local"
+
+# Keep $? clean for the first prompt: without this, a missing .zshrc.local
+# (or any earlier failed check) leaves a stale nonzero status that
+# _exit_status_capture misreports as a real command failure.
+true
