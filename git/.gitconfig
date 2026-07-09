@@ -2,6 +2,12 @@
 	name = Caio Rodrigues
 	email = dev@caiounderscore.xyz
 
+# Per-directory identity override: any repo under ~/work/ uses the work
+# identity from ~/.gitconfig-work (a per-machine, untracked file — see
+# .gitconfig-work.example). Keep all work clones under ~/work/.
+[includeIf "gitdir:~/work/"]
+	path = ~/.gitconfig-work
+
 [init]
 	defaultBranch = main
 

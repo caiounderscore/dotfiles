@@ -1,0 +1,6 @@
+# Copy to ~/.gitconfig-work on your work machine and fill in the work email.
+# This file is untracked (see .gitignore) so the work identity never lands in
+# the repo. Activated automatically for any repo under ~/work/ via the
+# includeIf rule in .gitconfig.
+[user]
+	email = caio@company.com
