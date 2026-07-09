@@ -3,6 +3,9 @@
 # Green is the default phosphor trace (foreground/cursor); the rest of
 # Dracula's real palette reads as status-LED/oscilloscope signal accents
 # glowing against the void, cinema-grading style (deep black + neon accents).
+font-family = "JetBrainsMono Nerd Font"
+font-size = 14
+
 background = #000000
 foreground = #50fa7b
 cursor-color = #50fa7b
