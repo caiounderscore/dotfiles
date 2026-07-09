@@ -23,7 +23,8 @@ dotfiles/
 │   └── .config/yazi/yazi.toml   — always show hidden files
 ├── claude/
 │   └── .claude/commands/session-report.md   — /session-report slash command
-└── Brewfile             — `brew bundle` package list (currently: colima)
+├── Brewfile             — `brew bundle` package list (stow, kubectl, colima, ghostty, …)
+└── bootstrap.sh         — idempotent new-machine setup
 ```
 
 Each top-level directory is a Stow "package" — its contents mirror the paths they should
@@ -90,20 +91,16 @@ stow -d ~/dotfiles -t "$HOME" <package-name>
 ## Set up on a new machine
 
 ```sh
-# 1. Install stow
-brew install stow   # or your distro's package manager
-
-# 2. Clone this repo
 git clone git@github.com:<you>/dotfiles.git ~/dotfiles
-
-# 3. Symlink every package into $HOME
 cd ~/dotfiles
-stow -t "$HOME" zsh git ghostty vim yazi claude
+./bootstrap.sh
+```
 
-# 4. Install everything in the Brewfile (currently: colima)
-brew bundle --file=~/dotfiles/Brewfile
+`bootstrap.sh` is idempotent (safe to re-run). It installs Homebrew if missing, runs the
+Brewfile, installs oh-my-zsh + the `zsh-autosuggestions` plugin that `.zshrc` expects, and
+stows every package. Then finish containers manually:
 
-# 5. Set up containers — see "Containers" above
+```sh
 colima start --runtime containerd
 mkdir -p ~/.local/bin
 colima nerdctl install --path ~/.local/bin/nerdctl
@@ -111,3 +108,14 @@ colima nerdctl install --path ~/.local/bin/nerdctl
 
 If a target file already exists (e.g. a fresh macOS install's default `.zshrc`), move or
 remove it first — `stow` refuses to overwrite existing files, only broken symlinks.
+
+## Per-machine / work overrides
+
+Shared config lives in the repo; anything machine- or employer-specific stays **untracked**
+(`.example` templates are provided and version-controlled):
+
+- **`~/.zshrc.local`** — sourced last by `.zshrc`. Proxy, corp `PATH`, work `KUBECONFIG`,
+  etc. Copy from `zsh/.zshrc.local.example`.
+- **`~/.gitconfig-work`** — work git identity. Auto-activated for any repo under `~/work/`
+  via an `includeIf` rule in `.gitconfig`, so work commits use your work email while
+  everything else stays personal. Copy from `git/.gitconfig-work.example`.
