@@ -67,10 +67,20 @@ work against it.
 
 ## `claude/` contents
 
-- `.claude/commands/session-report.md` → the `/session-report` slash command. Run it at
-  the end of a Claude Code session for a short, session-grounded report: concrete
-  context-engineering/prompt-construction improvements (not generic advice), plus
-  `/usage` output with the subscription-vs-API billing caveat spelled out.
+Portable Claude Code config so the agent behaves the same on every machine (same
+profile, same model/effort, same slash commands) instead of falling back to generic
+defaults:
+
+- `.claude/CLAUDE.md` → global profile: role, answer preferences (trade-offs, challenge
+  assumptions, production-oriented), ADR conventions, and language-coaching rules.
+- `.claude/settings.json` → `model`, `effortLevel=high`, and the `statusLine` (needs `jq`,
+  in the Brewfile). These drive how thorough/assertive the agent is, independent of
+  `CLAUDE.md`.
+- `.claude/hooks/lang-warmup.sh` → the bilingual (English/German) SessionStart warm-up.
+- `.claude/settings.local.json.example` → template that wires the warm-up hook in. The
+  hook is **not** in the shared `settings.json` — it's opt-in per machine (see below).
+- `.claude/commands/session-report.md`, `reload.md` → the `/session-report` and `/reload`
+  slash commands.
 
 ## Daily use
 
@@ -119,3 +129,7 @@ Shared config lives in the repo; anything machine- or employer-specific stays **
 - **`~/.gitconfig-work`** — work git identity. Auto-activated for any repo under `~/work/`
   via an `includeIf` rule in `.gitconfig`, so work commits use your work email while
   everything else stays personal. Copy from `git/.gitconfig-work.example`.
+- **`~/.claude/settings.local.json`** — enables the bilingual warm-up on this machine.
+  Copy from `claude/.claude/settings.local.json.example` on personal machines; leave it
+  out on the work laptop. If the file already exists (e.g. permissions), merge in the
+  `hooks` block rather than overwriting.
