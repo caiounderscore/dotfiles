@@ -23,6 +23,10 @@
 [color]
 	ui = auto
 
+# Use SSH for Bitbucket even when a remote is configured with an https URL.
+[url "git@bitbucket.org:"]
+	insteadOf = https://bitbucket.org/
+
 [alias]
 	st = status
 	co = checkout

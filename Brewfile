@@ -21,4 +21,3 @@ brew "colima"
 
 # Terminal
 cask "ghostty"
-brew "kubectl"
