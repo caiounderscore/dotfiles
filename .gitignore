@@ -13,3 +13,24 @@ settings.local.json
 .env.*
 id_rsa
 id_ed25519
+
+# Shared AI runtime state and installer metadata stay outside the Stow package.
+ai/.agents/state/
+ai/.agents/.skill-lock.json
+ai/.agents/skills/.antigravity-install-manifest.json
+
+# Client packages are allowlists: everything except intentional adapters is runtime state.
+claude/.claude.json*
+claude/.claude/*
+!claude/.claude/CLAUDE.md
+!claude/.claude/hooks/
+claude/.claude/hooks/*
+!claude/.claude/hooks/lang-warmup.sh
+!claude/.claude/settings.json
+
+codex/.codex/*
+!codex/.codex/AGENTS.md
+!codex/.codex/hooks.json
+!codex/.codex/hooks/
+codex/.codex/hooks/*
+!codex/.codex/hooks/lang-warmup.sh
