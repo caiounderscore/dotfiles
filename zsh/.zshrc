@@ -99,13 +99,13 @@ ZSH_THEME_GIT_PROMPT_SUFFIX="%f "
 ZSH_THEME_GIT_PROMPT_DIRTY="%F{33}) %F{220}%1{✗%}%f"
 ZSH_THEME_GIT_PROMPT_CLEAN="%F{33})%f"
 
-# Right prompt (attaches to line 1): Internet latency (green below 50ms,
-# yellow below 150ms, red otherwise); current kubectl context (e.g. "k:colima",
-# so you always know which cluster kubectl/`k` is pointed at); last command's
-# exit code in red (with a short description), only when it failed (the ➜ on
-# line 2 already turns red on success/failure); current time in pink;
-# slow-command timer if >15s.
-RPROMPT='${_network_display}${_kube_context_display}${_cmd_time_display}${_exit_status_display}%F{213}%*%f'
+# Right prompt (attaches to line 1): battery level (warns below 50%); Internet
+# latency (green below 50ms, yellow below 150ms, red otherwise); current
+# kubectl context (e.g. "k:colima", so you always know which cluster kubectl/`k`
+# is pointed at); last command's exit code in red (with a short description),
+# only when it failed (the ➜ on line 2 already turns red on success/failure);
+# current time in pink; slow-command timer if >15s.
+RPROMPT='${_battery_display}${_network_display}${_kube_context_display}${_cmd_time_display}${_exit_status_display}%F{213}%*%f'
 
 # _exit_status_capture renders the whole red segment itself, e.g.
 # "✗ 127 (command not found)", instead of relying on the raw %?/%(?..)
@@ -185,6 +185,37 @@ _kube_context_update() {
   fi
 }
 add-zsh-hook precmd _kube_context_update
+
+# Battery level in the right prompt (macOS). Reads `pmset -g batt` each prompt.
+# Emoji + color per state: ⚡ green when charging/on AC, 🔋 green when healthy,
+# 🪫 yellow as a warning below 50%, 🚨 red when critical below 20%. Hidden
+# entirely on machines with no battery (e.g. a desktop or missing pmset).
+_battery_display=""
+
+_battery_update() {
+  local raw pct icon color
+  raw=$(pmset -g batt 2>/dev/null)
+  if [[ "$raw" =~ '([0-9]+)%' ]]; then
+    pct=$match[1]
+  else
+    _battery_display=""
+    return
+  fi
+
+  if [[ "$raw" != *"discharging"* ]]; then
+    icon="⚡"; color=82        # charging / plugged in (note: "discharging"
+                              # contains "charging", so match its absence)
+  elif (( pct < 20 )); then
+    icon="🚨"; color=196       # critical
+  elif (( pct < 50 )); then
+    icon="🪫"; color=220       # warning
+  else
+    icon="🔋"; color=82        # healthy
+  fi
+
+  _battery_display="%F{${color}}${icon} ${pct}%%%f "
+}
+add-zsh-hook precmd _battery_update
 
 # Internet latency in the right prompt (macOS), refreshed asynchronously at
 # most once every 30 seconds per shell. `preexec` starts the probe so its work
