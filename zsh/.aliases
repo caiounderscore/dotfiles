@@ -81,44 +81,61 @@ alias reload='exec zsh -l'
 alias docker='nerdctl'
 alias docker-compose='nerdctl compose'
 
-# Search ~/.agents/skills by name + description, e.g. `skills code` or `skills -d code`
+# List/search ~/.agents/skills, e.g. `skills`, `skills agent`, or `skills -d agent`.
 skills() {
   local show_desc=0
-  if [ "$1" = "-d" ]; then
+  if [ "${1:-}" = "-d" ]; then
     show_desc=1
     shift
   fi
   local term="$*"
-  if [ -z "$term" ]; then
-    echo "Usage: skills [-d] <search-term>"
-    return 1
-  fi
-  find "${SKILLS_DIR:-$HOME/.agents/skills}" -mindepth 2 -maxdepth 2 -iname "SKILL.md" 2>/dev/null | \
-    xargs awk -v term="$term" -v show_desc="$show_desc" '
+  local skills_dir="${SKILLS_DIR:-$HOME/.agents/skills}"
+  [ -d "$skills_dir" ] || return 0
+
+  local -a skill_files
+  skill_files=("$skills_dir"/*/SKILL.md(N))
+  (( ${#skill_files[@]} > 0 )) || return 0
+
+  awk -v term="$term" -v show_desc="$show_desc" '
       function emit() {
         if (name == "") return
-        if (index(tolower(name " " desc), needle) > 0) {
+        if (needle == "" || index(tolower(name " " desc), needle) > 0) {
           if (show_desc) printf "%s — %s\n", name, desc
           else print name
         }
       }
-      BEGIN { needle = tolower(term) }
+      BEGIN { needle = tolower(term); squote = sprintf("%c", 39) }
       FNR==1 {
         if (NR>1) emit()
-        in_fm=0; name=""; desc=""; block=0
+        file_name=FILENAME
+        sub(/\/SKILL\.md$/, "", file_name)
+        sub(/^.*\//, "", file_name)
+        in_fm=0; name=file_name; desc=""; block=0
       }
       /^---[ \t]*$/ { in_fm++; if (in_fm==2) nextfile; next }
       in_fm==1 {
         if ($0 ~ /^name:[ \t]*/) {
-          name=$0; sub(/^name:[ \t]*/,"",name); gsub(/^"|"$/,"",name); block=0
+          name=$0; sub(/^name:[ \t]*/,"",name); gsub(/^"|"$/,"",name)
+          if (substr(name,1,1)==squote && substr(name,length(name),1)==squote) name=substr(name,2,length(name)-2)
+          block=0
         } else if ($0 ~ /^description:[ \t]*/) {
           desc=$0; sub(/^description:[ \t]*/,"",desc)
           if (desc==">" || desc=="|" || desc==">-" || desc=="|-") { block=1; desc="" }
-          else { gsub(/^"|"$/,"",desc); block=0 }
+          else {
+            gsub(/^"|"$/,"",desc)
+            if (substr(desc,1,1)==squote && substr(desc,length(desc),1)==squote) desc=substr(desc,2,length(desc)-2)
+            block=0
+          }
         } else if (block==1 && $0 ~ /^[ \t]+/) {
           line=$0; sub(/^[ \t]+/,"",line); desc = (desc=="") ? line : desc " " line
         } else { block=0 }
       }
       END { emit() }
-    ' | sort -u | GREP_COLOR='38;5;213' grep --color=auto -iF -- "$term"
+    ' "${skill_files[@]}" | sort -u | {
+      if [ -n "$term" ]; then
+        GREP_COLOR='38;5;213' grep --color=auto -iF -- "$term"
+      else
+        cat
+      fi
+    }
 }

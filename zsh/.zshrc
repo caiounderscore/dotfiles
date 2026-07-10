@@ -99,12 +99,13 @@ ZSH_THEME_GIT_PROMPT_SUFFIX="%f "
 ZSH_THEME_GIT_PROMPT_DIRTY="%F{33}) %F{220}%1{✗%}%f"
 ZSH_THEME_GIT_PROMPT_CLEAN="%F{33})%f"
 
-# Right prompt (attaches to line 1): current kubectl context (e.g. "k:colima",
+# Right prompt (attaches to line 1): Internet latency (green below 50ms,
+# yellow below 150ms, red otherwise); current kubectl context (e.g. "k:colima",
 # so you always know which cluster kubectl/`k` is pointed at); last command's
 # exit code in red (with a short description), only when it failed (the ➜ on
 # line 2 already turns red on success/failure); current time in pink;
 # slow-command timer if >15s.
-RPROMPT='${_kube_context_display}${_cmd_time_display}${_exit_status_display}%F{213}%*%f'
+RPROMPT='${_network_display}${_kube_context_display}${_cmd_time_display}${_exit_status_display}%F{213}%*%f'
 
 # _exit_status_capture renders the whole red segment itself, e.g.
 # "✗ 127 (command not found)", instead of relying on the raw %?/%(?..)
@@ -184,6 +185,100 @@ _kube_context_update() {
   fi
 }
 add-zsh-hook precmd _kube_context_update
+
+# Internet latency in the right prompt (macOS), refreshed asynchronously at
+# most once every 30 seconds per shell. `preexec` starts the probe so its work
+# normally overlaps the command; `precmd` only reads a tiny cache file. The
+# first prompt may be blank until the background probe finishes.
+#
+# The probe checks the route with `scutil`, then sends one ICMP packet to
+# 1.1.1.1. Ping waits at most ~300ms: `-W 250` is the reply timeout and
+# `-i 0.05` avoids macOS ping's additional one-second interval. ICMP may be
+# filtered even when HTTPS works, so distinguish that timeout from a definite
+# offline state. Hidden when the required macOS commands are unavailable.
+_network_display=""
+_network_probe_interval=30
+_network_last_probe_at=0
+_network_cache_checked_at=0
+_network_cache_file="${TMPDIR:-/tmp}/zsh-network-${UID}.cache"
+
+_network_probe() {
+  local reachability raw latency state value tmp
+  local -i latency_ms
+
+  reachability=$(LC_ALL=C scutil -r 1.1.1.1 2>/dev/null)
+  if [[ "$reachability" == "Not Reachable" ]]; then
+    state="offline"
+    value=""
+  else
+    raw=$(LC_ALL=C ping -n -q -c 1 -i 0.05 -W 250 1.1.1.1 2>/dev/null)
+    if [[ "$raw" =~ '= [0-9.]+/([0-9.]+)/' ]]; then
+      latency=$match[1]
+      (( latency_ms = latency + 0.5 ))
+      state="latency"
+      value=$latency_ms
+    else
+      state="timeout"
+      value=""
+    fi
+  fi
+
+  tmp=$(mktemp "${_network_cache_file}.XXXXXX") || return
+  print -r -- "${EPOCHSECONDS}"$'\t'"${state}"$'\t'"${value}" >| "$tmp" || return
+  command mv -f -- "$tmp" "$_network_cache_file"
+}
+
+_network_probe_start() {
+  setopt local_options no_bg_nice
+  local -i now=$EPOCHSECONDS newest=$_network_last_probe_at
+  (( _network_cache_checked_at > newest )) && newest=$_network_cache_checked_at
+
+  if (( ! $+commands[scutil] || ! $+commands[ping] ||
+        (newest <= now && now - newest < _network_probe_interval) )); then
+    return
+  fi
+
+  _network_last_probe_at=$now
+  (_network_probe) </dev/null >/dev/null 2>&1 &!
+}
+
+_network_update() {
+  local checked_at state value color
+  local -i now=$EPOCHSECONDS age
+
+  if [[ -r "$_network_cache_file" ]] &&
+      IFS=$'\t' read -r checked_at state value < "$_network_cache_file" &&
+      [[ "$checked_at" == <-> ]] && (( checked_at <= now )); then
+    age=$(( now - checked_at ))
+    _network_cache_checked_at=$checked_at
+  else
+    age=$(( _network_probe_interval * 2 + 1 ))
+    _network_cache_checked_at=0
+  fi
+
+  if (( age > _network_probe_interval * 2 )); then
+    _network_display=""
+  elif [[ "$state" == "latency" && "$value" == <-> ]]; then
+    if (( value < 50 )); then
+      color=82
+    elif (( value < 150 )); then
+      color=220
+    else
+      color=196
+    fi
+    _network_display="%F{${color}}📡 ${value}ms%f "
+  elif [[ "$state" == "offline" ]]; then
+    _network_display="%F{196}📡 offline%f "
+  elif [[ "$state" == "timeout" ]]; then
+    _network_display="%F{196}📡 timeout%f "
+  else
+    _network_display=""
+  fi
+
+  _network_probe_start
+}
+add-zsh-hook preexec _network_probe_start
+add-zsh-hook precmd _network_update
 
 # User configuration
 

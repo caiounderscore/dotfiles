@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.codex/hooks/lang-warmup.sh\"",
+            "timeout": 10,
+            "statusMessage": "Loading language warm-up…"
+          }
+        ]
+      }
+    ]
+  }
+}

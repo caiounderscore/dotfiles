@@ -8,6 +8,21 @@
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true
   },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/lang-warmup.sh\"",
+            "timeout": 10,
+            "statusMessage": "Loading language warm-up..."
+          }
+        ]
+      }
+    ]
+  },
   "skipWorkflowUsageWarning": true,
   "theme": "dark-ansi",
   "remoteControlAtStartup": false,
