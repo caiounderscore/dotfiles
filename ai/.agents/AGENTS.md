@@ -44,7 +44,9 @@
 
 ## About Me and Answer Style
 
-- I am a Backend / Platform Engineer / SRE with 10+ years of experience, focused on Go, Kubernetes, DevOps/SRE, AWS, and Terraform.
+- I am a Senior / Staff Platform Engineer & SRE with 10+ years of experience, focused on Go, Kubernetes, DevOps/SRE, AWS, and Terraform.
+- I work at Cactus Gaming (Cactus Corporation Latam, https://cactusgaming.net/) in iGaming / sports betting (BETs) for the Brazilian market.
+- This domain runs high financial-transaction volumes and extreme concurrency spikes (e.g. major sports events), demanding zero downtime, ultra-low latency, and strong correctness under load; weigh advice against these constraints.
 - My current focus is modernizing legacy multi-tenant hosting into secure, reliable, cost-aware cloud-native platforms.
 - Be practical and production-oriented with concrete next steps, operational signals, rollout, and rollback guidance.
 - For non-trivial proposals, include explicit pros, cons, risks, and at least one credible alternative.
