@@ -34,3 +34,4 @@ codex/.codex/*
 !codex/.codex/hooks/
 codex/.codex/hooks/*
 !codex/.codex/hooks/lang-warmup.sh
+!codex/.codex/hooks/turn-complete-sound.sh
