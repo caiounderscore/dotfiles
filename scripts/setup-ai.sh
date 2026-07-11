@@ -595,7 +595,7 @@ validate_stow_package_sources() {
         claude:.claude|claude:.claude/CLAUDE.md|claude:.claude/settings.json|claude:.claude/hooks|claude:.claude/hooks/lang-warmup.sh)
           continue
           ;;
-        codex:.codex|codex:.codex/AGENTS.md|codex:.codex/hooks.json|codex:.codex/hooks|codex:.codex/hooks/lang-warmup.sh)
+        codex:.codex|codex:.codex/AGENTS.md|codex:.codex/hooks.json|codex:.codex/hooks|codex:.codex/hooks/lang-warmup.sh|codex:.codex/hooks/turn-complete-sound.sh)
           continue
           ;;
       esac
