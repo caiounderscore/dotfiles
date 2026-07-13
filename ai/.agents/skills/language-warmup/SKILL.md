@@ -19,8 +19,8 @@ Read accessible state before choosing questions. If German conflict files exist 
 1. Greet in one short line.
 2. Ask exactly one German question at A2–B1 and exactly one English question at B2–C1. Prefer logged weak points and vary the prompts across sessions.
 3. Wait for both answers before continuing the user's original request.
-4. Correct both answers immediately: mark errors, give the natural form, name the category, explain briefly, and add one mini-drill for recurring errors.
-5. Apply the rising bar: repeated logged errors receive an extra penalty and cap the score at 85; acknowledge repaired recurring errors.
+4. Correct both answers immediately: mark errors, give the natural form, name the category, explain briefly, and add one mini-drill per recurring category that appeared.
+5. For the English answer and English log only, apply the strict rising bar in `../english-teacher/references/scoring-rubric.md`, including its deductions, caps, and repair-evidence rules.
 6. Update the neutral logs only when authorized and writable.
 
 If the sandbox blocks state writes, request narrowly scoped approval when appropriate. Otherwise return a copyable log update and continue without weakening sandbox or approval policy.
