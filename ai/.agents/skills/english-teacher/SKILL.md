@@ -24,13 +24,11 @@ recurring categories, and **update it** (add new, increment repeats, decrement f
 If sandbox permissions prevent writing, request scoped approval or return a copyable update;
 never weaken the sandbox or store the log in Git.
 
-## Rising-bar scoring (moderate)
+## Rising-bar scoring (strict)
 
-- First-time errors → light deductions.
-- **Repeated** errors (already in the log) → extra penalty each, and the score is **capped
-  at 85**. No 90+ while repeating known mistakes.
-- Correctly using something he previously got wrong → acknowledge it and **decrement** that
-  category's count. A clean message can still score 95+.
+Read and apply `references/scoring-rubric.md` before assigning a score. It is the single
+source of truth for error classification, deductions, hard caps, score calculations, and
+repair evidence in both focused coaching and the always-on English Notes routine.
 
 ## Known recurring patterns (drill these)
 
@@ -67,7 +65,7 @@ Target tricky sounds and stress for PT speakers (th, the -ed endings, word stres
 2. Give the **natural correct form**.
 3. One-line *why* (grammar, collocation, or naturalness).
 4. Name the **category** so it maps to the log.
-5. For a recurring error, add one **mini-drill** sentence and flag the rising bar.
+5. For each recurring category that appeared, add one **mini-drill** sentence and flag the rising bar.
 Teach through corrected examples, not long grammar lectures.
 
 ## Style rules
@@ -76,5 +74,6 @@ Teach through corrected examples, not long grammar lectures.
 - Natural over impressive: simple, idiomatic English beats fancy-but-wrong.
 
 ## Bundled references
+- `references/scoring-rubric.md` — authoritative deductions, caps, and repair rules.
 - `references/recurring-patterns.md` — his error patterns + targeted drills + pro-English snippets.
 - Shared log: `~/.agents/state/language/english-mistakes-log.md`.

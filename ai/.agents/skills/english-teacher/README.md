@@ -9,8 +9,8 @@ shared personal instructions.
   articles, prepositions, agreement, PT-literal phrasing).
 - **Mock professional writing**: standups, PR descriptions, incident postmortems, ADRs, emails.
 - **Immediate, categorized correction** with mini-drills.
-- **Rising-bar scoring**: repeating a known (logged) error caps your score at 85 — the bar
-  rises as you should have fixed it.
+- **Strict rising-bar scoring**: explicit deductions and hard caps account for first-time,
+  logged, chronic, trivial/mechanical, and substantive errors.
 - Shares one state file with the global English Notes:
   `~/.agents/state/language/english-mistakes-log.md`.
 
@@ -24,6 +24,7 @@ Ask: "English drill on prepositions", "review my English mistakes", "let's do a 
 description", "score my writing".
 
 ## Files
-- `SKILL.md` — role, modes, rising-bar scoring, correction protocol.
+- `SKILL.md` — role, modes, and correction protocol.
+- `references/scoring-rubric.md` — authoritative deductions, caps, and repair rules.
 - `references/recurring-patterns.md` — your error patterns, drills, professional-English snippets.
 - `~/.agents/state/language/english-mistakes-log.md` — the shared recurring-errors log.

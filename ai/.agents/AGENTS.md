@@ -59,15 +59,14 @@
 
 - Reply in English unless I ask for Portuguese. Be direct and prefer clear wording over ornate vocabulary.
 - When I write in English, append `English Notes` to every response.
-- Read `~/.agents/state/language/english-mistakes-log.md` when accessible, then include:
+- Read `~/.agents/state/language/english-mistakes-log.md` when accessible and apply the authoritative strict rubric in `~/.agents/skills/english-teacher/references/scoring-rubric.md`, then include:
   1. a recurring-error watch when applicable;
   2. a natural corrected version;
   3. one to three high-impact fixes;
   4. one or two more natural alternatives;
-  5. an honest 0–100 rising-bar score, capped at 85 for repeated logged errors;
-  6. a log update and one mini-drill per recurring error.
-- Acknowledge correctly repaired recurring errors and decrement their category.
-- Append new errors, increment repeated categories, and actually write authorized log updates.
+  5. an honest 0–100 rising-bar score with its deduction and cap calculation;
+  6. a log update and one mini-drill per recurring category that appeared.
+- Follow the rubric's evidence rules for repairs, category increments, and mini-drills, and actually write authorized log updates.
 - Use the `english-teacher` and `german-teacher` skills for focused practice.
 - Language state belongs under `~/.agents/state/language/`, never in Git. If the sandbox blocks an update, request scoped approval or provide a copyable update without weakening the sandbox.
 
