@@ -1,5 +1,58 @@
 alias k='kubectl'
 
+# `watch` → hwatch: a scrollable in-memory history of past frames plus their
+# diffs, instead of only the latest frame. Alias/function resolution is
+# preserved with `-s 'zsh +m -ic'`: `-i` sources ~/.zshrc so `k`, `klocal`,
+# etc. resolve, while `+m` disables job control (monitor mode). Without `+m`
+# the interactive child grabs the terminal and hwatch's navigation keys trip
+# SIGTTIN ("suspended (tty input)"); job control is useless for a one-shot
+# run anyway. Falls back to procps `watch` when hwatch is absent
+# (minimal/remote boxes); plain procps watch stays reachable as `command watch`.
+#
+#   watch [--log] [--notify] [hwatch options...] <command...>
+#     --log     also append a timestamped JSON log under ${TMPDIR:-/tmp}/hwatch/
+#               — opt-in and ephemeral (the tmp dir is cleared on reboot). It
+#               records whatever the command prints, so only use it when that
+#               output is safe to land on disk.
+#     --notify  alert when the output changes (macOS: a sound via afplay;
+#               elsewhere: the terminal bell).
+# Our two flags must lead; everything after them flows through to hwatch as-is.
+watch() {
+  local do_log=0 do_notify=0
+  while (( $# )); do
+    case "$1" in
+      --log)    do_log=1;    shift ;;
+      --notify) do_notify=1; shift ;;
+      --)       shift; break ;;
+      *)        break ;;
+    esac
+  done
+
+  # No hwatch: keep the original behavior so remote/minimal boxes don't break.
+  if (( ! ${+commands[hwatch]} )); then
+    command watch -x zsh +m -ic "$*"
+    return
+  fi
+
+  local -a opts=(-c -s 'zsh +m -ic')
+
+  if (( do_log )); then
+    local dir="${TMPDIR:-/tmp}/hwatch"
+    mkdir -p "$dir" && chmod 700 "$dir"
+    opts+=(-l "$dir/watch-$(date +%Y%m%d-%H%M%S)-$$.jsonl")
+  fi
+
+  if (( do_notify )); then
+    if [[ "$OSTYPE" == darwin* ]] && [[ -x /usr/bin/afplay ]]; then
+      opts+=(-A 'nohup /usr/bin/afplay -v 0.35 /System/Library/Sounds/Submarine.aiff >/dev/null 2>&1 &')
+    else
+      opts+=(-B)
+    fi
+  fi
+
+  hwatch "${opts[@]}" "$@"
+}
+
 # Kubernetes environment shortcuts. dev/prod context names are placeholders
 # until real clusters get added to kubeconfig; local defaults to the real
 # Colima k3s context. sandbox uses its own kubeconfig file rather than a

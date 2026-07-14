@@ -13,6 +13,10 @@ brew "nvm"
 # Kubernetes CLI (aliased to `k`)
 brew "kubectl"
 
+# `watch` replacement with execution history + diffs (see the watch() wrapper
+# in zsh/.aliases). Optional: the wrapper falls back to procps watch without it.
+brew "hwatch"
+
 # Used by the Claude Code statusLine command
 brew "jq"
 
