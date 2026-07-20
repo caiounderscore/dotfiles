@@ -28,7 +28,8 @@ never weaken the sandbox or store the log in Git.
 
 Read and apply `references/scoring-rubric.md` before assigning a score. It is the single
 source of truth for error classification, deductions, hard caps, score calculations, and
-repair evidence in both focused coaching and the always-on English Notes routine.
+repair evidence in both focused coaching and the always-on English Notes routine. Apply its
+response gate after scoring; correction and practice remain available at every score.
 
 ## Known recurring patterns (drill these)
 

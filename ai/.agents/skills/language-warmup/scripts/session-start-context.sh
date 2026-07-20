@@ -19,5 +19,5 @@ case "$event_source" in
 esac
 
 cat <<'JSON'
-{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"Apply the shared `language-warmup` skill now, before handling the pending request. Follow its neutral state paths, correction rules, and sandbox-safe fallback exactly."}}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"Before handling the pending request, read and apply the shared `language-warmup` skill directly from `~/.agents/skills/language-warmup/SKILL.md`. A bounded or truncated client skill catalog may omit it; catalog omission alone does not mean that the skill is unavailable. If the neutral file cannot be read, try an available skill provider, then use the skill's mandated sandbox-safe fallback only if neither source is accessible. Follow its neutral state paths and correction rules exactly."}}
 JSON

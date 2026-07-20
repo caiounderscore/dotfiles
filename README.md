@@ -145,6 +145,9 @@ auth, history, installed skills, and project state.
   per-machine marker exists.
 - `english-teacher` and `german-teacher` retain their complete teaching references while
   keeping progress under neutral, untracked state paths.
+- The authoritative English rubric applies a client-agnostic response gate: scores below 55
+  defer non-urgent work until a corrected rewrite, while urgent operational and protective
+  responses remain available at every score.
 
 If a sandbox cannot write language state, the skills request scoped approval or return a
 copyable update. They never weaken a client's sandbox globally.
