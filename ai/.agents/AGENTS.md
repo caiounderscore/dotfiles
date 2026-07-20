@@ -65,7 +65,8 @@
   3. one to three high-impact fixes;
   4. one or two more natural alternatives;
   5. an honest 0–100 rising-bar score with its deduction and cap calculation;
-  6. a log update and one mini-drill per recurring category that appeared.
+  6. a log update and one mini-drill per recurring category that appeared;
+  7. the rubric's response gate after scoring, including its urgent and protective exceptions.
 - Follow the rubric's evidence rules for repairs, category increments, and mini-drills, and actually write authorized log updates.
 - Use the `english-teacher` and `german-teacher` skills for focused practice.
 - Language state belongs under `~/.agents/state/language/`, never in Git. If the sandbox blocks an update, request scoped approval or provide a copyable update without weakening the sandbox.

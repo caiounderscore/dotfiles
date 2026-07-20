@@ -77,6 +77,31 @@ Show the arithmetic compactly, for example: `100 - 6 - 3 = 91; chronic-trivial c
 Do not soften the result merely because the message remains understandable. A short clean
 message may score 100, but its brevity is not evidence that a recurring pattern was repaired.
 
+## Response gate
+
+Apply the gate after calculating the final score for user-authored English:
+
+| Final score | Required behavior |
+|---:|---|
+| 80–100 | Handle the request normally and append English Notes with concise tips. |
+| 55–79 | Handle the request normally, append English Notes, and label the category mini-drills as `Required practice`. |
+| Below 55 | Do not perform or substantially answer a non-urgent request yet. Give English Notes, ask the user to rewrite the request using the correction, and resume the original request as soon as a rewrite scores 55 or higher. |
+
+The gate is instructional friction, not a safety boundary. Regardless of score, provide the
+minimum complete response needed for:
+
+- active incidents, production degradation, outages, or other time-sensitive operational work;
+- security, privacy, credential exposure, data-loss prevention, or personal-safety concerns;
+- clarification or refusal needed to avoid an unsafe, destructive, or unauthorized action;
+- accessibility needs; and
+- the language correction, drill, or warm-up itself.
+
+For an exception, handle the urgent or protective part, still append English Notes, and ask
+for a corrected rewrite only after the immediate risk is addressed. Do not use the gate to
+withhold a safety refusal or a necessary clarifying question. Continue excluding quoted text,
+code, logs, commands, and paths from scoring. The gate uses the current message's final score;
+do not invent rolling averages, probation periods, or additional thresholds.
+
 ## Log and repair evidence
 
 - For a message containing one or more errors, append one error-log row and increment each

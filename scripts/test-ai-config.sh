@@ -7,6 +7,7 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly SOURCE_REPO="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 readonly SETUP_SCRIPT="$SOURCE_REPO/scripts/setup-ai.sh"
 readonly HOOK_SCRIPT="$SOURCE_REPO/ai/.agents/skills/language-warmup/scripts/session-start-context.sh"
+readonly ENGLISH_RUBRIC="$SOURCE_REPO/ai/.agents/skills/english-teacher/references/scoring-rubric.md"
 
 for command_name in awk cmp cp find jq join shasum sort stow; do
   command -v "$command_name" >/dev/null 2>&1 || {
@@ -463,7 +464,11 @@ test_hook_gating() {
   fi
   printf '%s\n' "$output" | jq -e '
     .hookSpecificOutput.hookEventName == "SessionStart" and
-    (.hookSpecificOutput.additionalContext | contains("language-warmup"))
+    (.hookSpecificOutput.additionalContext | contains("language-warmup")) and
+    (.hookSpecificOutput.additionalContext |
+      contains("~/.agents/skills/language-warmup/SKILL.md")) and
+    (.hookSpecificOutput.additionalContext |
+      contains("catalog omission alone does not mean that the skill is unavailable"))
   ' >/dev/null || fail "startup hook output was not valid injection JSON"
 
   if ! output=$(printf '%s' '{"source":"clear"}' | \
@@ -499,6 +504,30 @@ test_hook_gating() {
     fail "absent-marker hook returned failure"
   fi
   assert_eq "" "$output" "hook ran without the warm-up marker"
+}
+
+test_language_response_gate_contract() {
+  assert_contains "$ENGLISH_RUBRIC" \
+    '| 80–100 | Handle the request normally and append English Notes with concise tips.' \
+    "English rubric did not define the normal-response tier"
+  assert_contains "$ENGLISH_RUBRIC" \
+    '| 55–79 | Handle the request normally, append English Notes, and label the category mini-drills as `Required practice`.' \
+    "English rubric did not define the required-practice tier"
+  assert_contains "$ENGLISH_RUBRIC" \
+    '| Below 55 | Do not perform or substantially answer a non-urgent request yet.' \
+    "English rubric did not define the below-55 rewrite gate"
+  assert_contains "$ENGLISH_RUBRIC" \
+    'active incidents, production degradation, outages' \
+    "English rubric did not preserve urgent operational responses"
+  assert_contains "$ENGLISH_RUBRIC" \
+    'clarification or refusal needed to avoid an unsafe, destructive, or unauthorized action' \
+    "English rubric did not preserve protective responses"
+  assert_contains "$SOURCE_REPO/ai/.agents/AGENTS.md" \
+    "the rubric's response gate" \
+    "shared instructions did not reference the authoritative response gate"
+  assert_contains "$SOURCE_REPO/ai/.agents/skills/language-warmup/SKILL.md" \
+    'when the gate defers a non-urgent pending request' \
+    "language warm-up did not honor the response gate"
 }
 
 test_folded_claude_root_preflight() {
@@ -598,6 +627,7 @@ run_test "per-file Claude command links retire selectively" test_per_file_comman
 run_test "real Claude skills directory is refused" test_real_claude_skills_refusal
 run_test "legacy warm-up preference migrates to a marker" test_warmup_marker_migration
 run_test "warm-up hook is marker and event gated" test_hook_gating
+run_test "English response gate preserves urgent and protective work" test_language_response_gate_contract
 run_test "folded Claude root is refused before migration" test_folded_claude_root_preflight
 run_test "unexpected Stow package content is refused" test_unexpected_package_source_preflight
 
