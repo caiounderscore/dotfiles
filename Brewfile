@@ -9,6 +9,8 @@ brew "stow"
 brew "vim"
 brew "yazi"
 brew "nvm"
+brew "fzf"
+brew "tuicr"
 
 # Kubernetes CLI (aliased to `k`)
 brew "kubectl"

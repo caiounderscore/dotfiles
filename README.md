@@ -12,6 +12,7 @@ dotfiles/
 │   └── skills/                   # user-owned portable skills only
 ├── claude/.claude/               # Claude settings and thin adapters
 ├── codex/.codex/                 # Codex instructions and hook adapters
+├── tuicr/.config/tuicr/          # shared local-review configuration
 ├── zsh/                          # .zshrc, .aliases, .exports
 ├── git/                          # .gitconfig and work example
 ├── ghostty/                      # terminal configuration
@@ -41,8 +42,8 @@ format. Those settings remain under their vendor packages or unmanaged runtime d
 | Migration backups | `~/.agents/state/backups/ai-migration-<timestamp>/` (untracked) |
 
 The repository intentionally vendors only personal portable skills: `reload`,
-`session-report`, `language-warmup`, `english-teacher`, and `german-teacher`. The 1,500+
-installed third-party skills remain outside Git.
+`session-report`, `language-warmup`, `english-teacher`, `german-teacher`, and
+`tuicr-review`. The 1,500+ installed third-party skills remain outside Git.
 
 `~/.agents/.skill-lock.json` is also left unmanaged. The current file has safe provenance and
 content hashes for 20 skills, but no pinned revisions and no coverage for most installed
@@ -145,6 +146,9 @@ auth, history, installed skills, and project state.
   per-machine marker exists.
 - `english-teacher` and `german-teacher` retain their complete teaching references while
   keeping progress under neutral, untracked state paths.
+- `tuicr-review` processes human comments from repository-scoped local tuicr sessions after
+  the explicit `Review ready.` trigger. It presents `APPLY`, `KEEP`, `CLARIFY`, or `DEFER`
+  before editing and never polls or writes comments.
 - The authoritative English rubric applies a client-agnostic response gate: scores below 55
   defer non-urgent work until a corrected rewrite, while urgent operational and protective
   responses remain available at every score.
@@ -163,6 +167,20 @@ copyable update. They never weaken a client's sandbox globally.
 - `docker` and `docker-compose` map to `nerdctl` and `nerdctl compose`.
 - `skills` lists every skill in `~/.agents/skills`; `skills <term>` filters names and
   descriptions; `skills -d [term]` includes descriptions. Override the root with `SKILLS_DIR`.
+
+### Local tuicr review
+
+The `tuicr` Stow package configures the native comment-type cycle as
+`CONTRAST`, `SIMPLIFY`, `CHALLENGE`, `CONTRACT`, `VERIFY`, `QUESTION`, `INTENT`,
+then `None`. In a task workspace, use `review`, press `c` to create a comment,
+and press `Tab` to select its semantic type. After writing comments, tell the
+agent `Review ready.`; it reads each repository's persisted session through the
+scoped `tuicr review` CLI and produces dispositions before editing.
+
+The task-workspace root is not a Git repository by design. Start each child
+repository's applicable instructions explicitly when processing comments; an
+agent started at the task root may not automatically load every child's
+project-specific instructions, hooks, or root configuration.
 
 ## Containers and local Kubernetes
 

@@ -39,3 +39,9 @@ notify-on-command-finish-after = 15s
 bell-features = audio
 bell-audio-path = /System/Library/Sounds/Submarine.aiff
 bell-audio-volume = 0.35
+
+# Task-workspace panes intentionally inherit the directory of the pane that
+# created them, so AI, Yazi/shell, and review start from the same task root.
+window-inherit-working-directory = true
+tab-inherit-working-directory = true
+split-inherit-working-directory = true
