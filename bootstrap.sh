@@ -33,7 +33,7 @@ if [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]; then
 fi
 
 # 4. Preview, then link the existing non-AI packages.
-readonly -a BASE_PACKAGES=(zsh git ghostty vim yazi)
+readonly -a BASE_PACKAGES=(zsh git ghostty vim yazi tuicr)
 stow --simulate --verbose=2 \
   --dir="$REPO_DIR" --target="$HOME" "${BASE_PACKAGES[@]}"
 stow --verbose=1 \
