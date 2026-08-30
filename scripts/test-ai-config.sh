@@ -506,6 +506,46 @@ test_hook_gating() {
   assert_eq "" "$output" "hook ran without the warm-up marker"
 }
 
+test_managed_workspace_hook_context() {
+  local home_dir="$TEST_ROOT/homes/workspace-hook"
+  local outer_workspace="$TEST_ROOT/workspaces/outer"
+  local inner_workspace="$outer_workspace/inner"
+  local session_dir="$inner_workspace/repository/subdirectory"
+  local output
+
+  mkdir -p -- "$home_dir" "$session_dir"
+  outer_workspace=$(cd -- "$outer_workspace" && pwd -P)
+  inner_workspace=$(cd -- "$inner_workspace" && pwd -P)
+  session_dir=$(cd -- "$session_dir" && pwd -P)
+  jq -n \
+    --arg goal "Outer goal" \
+    --arg root "$outer_workspace" \
+    '{workspace: "outer", goal: $goal, sourceBranch: "main", root: $root, repositories: []}' \
+    >"$outer_workspace/.task-workspace.json"
+  jq -n \
+    --arg goal "Nearest goal" \
+    --arg root "$inner_workspace" \
+    '{workspace: "inner", goal: $goal, sourceBranch: "main", root: $root, repositories: []}' \
+    >"$inner_workspace/.task-workspace.json"
+
+  if ! output=$(jq -n --arg cwd "$session_dir" '{source: "startup", cwd: $cwd}' | \
+    HOME="$home_dir" bash "$HOOK_SCRIPT"); then
+    fail "managed workspace hook failed"
+  fi
+  printf '%s\n' "$output" | jq -e \
+    --arg root "$inner_workspace" \
+    --arg outer "$outer_workspace" '
+      .hookSpecificOutput.hookEventName == "SessionStart" and
+      (.hookSpecificOutput.additionalContext | contains("This is a managed task workspace.")) and
+      (.hookSpecificOutput.additionalContext | contains("Nearest goal")) and
+      (.hookSpecificOutput.additionalContext | contains($root + "/AGENTS.md")) and
+      (.hookSpecificOutput.additionalContext | contains("Use only the canonical worktrees")) and
+      (.hookSpecificOutput.additionalContext | contains("creating another clone")) and
+      (.hookSpecificOutput.additionalContext | contains("Outer goal") | not) and
+      (.hookSpecificOutput.additionalContext | contains($outer + "/AGENTS.md") | not)
+    ' >/dev/null || fail "hook did not inject the nearest managed workspace context"
+}
+
 test_language_response_gate_contract() {
   assert_contains "$ENGLISH_RUBRIC" \
     '| 80–100 | Handle the request normally and append English Notes with concise tips.' \
@@ -627,6 +667,7 @@ run_test "per-file Claude command links retire selectively" test_per_file_comman
 run_test "real Claude skills directory is refused" test_real_claude_skills_refusal
 run_test "legacy warm-up preference migrates to a marker" test_warmup_marker_migration
 run_test "warm-up hook is marker and event gated" test_hook_gating
+run_test "session hook injects the nearest managed workspace contract" test_managed_workspace_hook_context
 run_test "English response gate preserves urgent and protective work" test_language_response_gate_contract
 run_test "folded Claude root is refused before migration" test_folded_claude_root_preflight
 run_test "unexpected Stow package content is refused" test_unexpected_package_source_preflight

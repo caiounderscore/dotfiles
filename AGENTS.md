@@ -20,6 +20,7 @@ git diff --check
 bash -n bootstrap.sh scripts/setup-ai.sh
 zsh -n zsh/.aliases
 jq empty claude/.claude/settings.json codex/.codex/hooks.json
+bash scripts/test-task-workspace.sh
 bash scripts/test-ai-config.sh
 ```
 
