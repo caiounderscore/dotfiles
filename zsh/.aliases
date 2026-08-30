@@ -137,14 +137,17 @@ alias docker-compose='nerdctl compose'
 # Create a task workspace with one Git worktree per repository. The source
 # branch is explicit and all validation completes before any worktree is made.
 task-workspace() {
-  local usage="Usage: task-workspace --from <source-branch> [--workspace <path>] [--target-branch <branch>] <workspace-name> <repository> [repository ...]"
-  local source_branch="" workspace_override="" target_branch="" workspace_name=""
+  local usage="Usage: task-workspace --from <source-branch> [--goal <task-objective>] [--workspace <path>] [--target-branch <branch>] <workspace-name> <repository> [repository ...]"
+  local source_branch="" goal="" workspace_override="" target_branch="" workspace_name=""
   local workspace_input workspace_path source repo_root repo_name target_path
   local source_ref source_commit common_dir target_commit target_action
-  local remote_ref remote_name_branch checked_out merge_base
-  local requested_branch parent
-  local -a repositories repo_names common_dirs source_refs source_commits
+  local remote_ref remote_name_branch checked_out merge_base origin
+  local target_repo_root target_common_dir target_origin existing_branch target_physical
+  local requested_branch parent contract_path repositories_json manifest_tmp agents_tmp
+  local manifest_path agents_path invariant_checked_out
+  local -a repositories repo_names common_dirs origins source_refs source_commits
   local -a target_paths target_actions target_commits target_merge_bases problems created
+  local -a invariant_problems
   local -i index=1 inner=1
 
   while (( $# )); do
@@ -152,6 +155,12 @@ task-workspace() {
       --from)
         (( $# >= 2 )) || { echo "$usage" >&2; return 1; }
         source_branch="$2"
+        shift 2
+        ;;
+      --goal)
+        (( $# >= 2 )) || { echo "$usage" >&2; return 1; }
+        goal="$2"
+        [[ -n "$goal" ]] || problems+=("--goal must not be empty")
         shift 2
         ;;
       --workspace)
@@ -194,6 +203,7 @@ task-workspace() {
   [[ -n "$workspace_name" ]] || problems+=("workspace name is required")
   (( ${#repositories[@]} > 0 )) || problems+=("at least one repository is required")
   command -v git >/dev/null 2>&1 || problems+=("git is required")
+  command -v jq >/dev/null 2>&1 || problems+=("jq is required")
 
   if [[ -n "$workspace_name" ]]; then
     if [[ "$workspace_name" == /* || "$workspace_name" == */ ||
@@ -242,6 +252,16 @@ task-workspace() {
       [[ -d "$parent" && -w "$parent" ]] ||
         problems+=("workspace parent is not writable: $parent")
     fi
+
+    manifest_path="$workspace_path/.task-workspace.json"
+    agents_path="$workspace_path/AGENTS.md"
+    for contract_path in "$manifest_path" "$agents_path"; do
+      if [[ -L "$contract_path" ]]; then
+        problems+=("workspace contract path is a symlink: $contract_path")
+      elif [[ -e "$contract_path" && ! -f "$contract_path" ]]; then
+        problems+=("workspace contract path is not a regular file: $contract_path")
+      fi
+    done
   fi
 
   for source in "${repositories[@]}"; do
@@ -269,6 +289,10 @@ task-workspace() {
     common_dir="${common_dir:A}"
     repo_name="${repo_root:t}"
 
+    if [[ "$repo_name" == "AGENTS.md" || "$repo_name" == ".task-workspace.json" ]]; then
+      problems+=("repository name conflicts with a workspace contract file: $repo_name")
+    fi
+
     for (( inner = 1; inner <= ${#common_dirs[@]}; inner++ )); do
       [[ "${common_dirs[inner]}" == "$common_dir" ]] &&
         problems+=("duplicate underlying repository: $source")
@@ -293,8 +317,14 @@ task-workspace() {
       }
     fi
 
+    origin=$(git -C "$source" remote get-url origin 2>/dev/null) || {
+      problems+=("origin remote not found in repository: $source")
+      origin=""
+    }
+
     repo_names+=("$repo_name")
     common_dirs+=("$common_dir")
+    origins+=("$origin")
     source_refs+=("$source_ref")
     source_commits+=("$source_commit")
     target_paths+=("$workspace_path/$repo_name")
@@ -313,8 +343,7 @@ task-workspace() {
       target_path="${target_paths[index]}"
       target_commit=""
       merge_base=""
-      [[ ! -e "$target_path" && ! -L "$target_path" ]] ||
-        problems+=("target already exists: $target_path")
+      checked_out=""
 
       if git -C "$source" show-ref --verify --quiet "refs/heads/$target_branch"; then
         target_action="REUSE_BRANCH"
@@ -325,8 +354,7 @@ task-workspace() {
         checked_out=$(git -C "$source" worktree list --porcelain 2>/dev/null | awk \
           -v wanted="refs/heads/$target_branch" \
           '$1 == "worktree" { path = substr($0, 10) } $1 == "branch" && $2 == wanted { print path; exit }')
-        [[ -z "$checked_out" ]] ||
-          problems+=("target branch already checked out in $source: $target_branch at $checked_out")
+        [[ -z "$checked_out" ]] || checked_out="${checked_out:A}"
         if [[ -n "$target_commit" ]]; then
           merge_base=$(git -C "$source" merge-base "${source_commits[index]}" "$target_commit" 2>/dev/null) || {
             problems+=("no merge base between $source_branch and $target_branch in $source")
@@ -346,6 +374,78 @@ task-workspace() {
         else
           target_action="CREATE_BRANCH"
         fi
+      fi
+
+      if [[ -L "$target_path" ]]; then
+        problems+=("canonical repository path is a symlink: $target_path")
+      elif [[ -e "$target_path" ]]; then
+        if [[ ! -d "$target_path" ]]; then
+          problems+=("canonical repository path is not a directory: $target_path")
+        else
+          [[ -w "$target_path" ]] ||
+            problems+=("canonical repository path is not writable: $target_path")
+          target_physical="${target_path:A}"
+          if [[ "$target_physical" != "$workspace_path"/* ]]; then
+            problems+=("canonical repository is outside the workspace root: $target_path")
+          fi
+
+          target_repo_root=$(git -C "$target_path" rev-parse --show-toplevel 2>/dev/null) || {
+            problems+=("target path is not a Git worktree: $target_path")
+            target_repo_root=""
+          }
+          if [[ -n "$target_repo_root" ]]; then
+            target_repo_root="${target_repo_root:A}"
+            [[ "$target_repo_root" == "$target_physical" ]] ||
+              problems+=("target path is not an exact Git worktree root: $target_path")
+          fi
+
+          target_common_dir=$(git -C "$target_path" rev-parse --git-common-dir 2>/dev/null) || {
+            problems+=("cannot resolve target Git common directory: $target_path")
+            target_common_dir=""
+          }
+          if [[ -n "$target_common_dir" ]]; then
+            [[ "$target_common_dir" == /* ]] || target_common_dir="$target_path/$target_common_dir"
+            target_common_dir="${target_common_dir:A}"
+            [[ "$target_common_dir" == "${common_dirs[index]}" ]] ||
+              problems+=("target path belongs to a different repository: $target_path")
+          fi
+
+          target_origin=$(git -C "$target_path" remote get-url origin 2>/dev/null) || {
+            problems+=("origin remote not found in target worktree: $target_path")
+            target_origin=""
+          }
+          if [[ -n "$target_origin" && "$target_origin" != "${origins[index]}" ]]; then
+            problems+=("target origin does not match requested repository: $target_path")
+          fi
+
+          existing_branch=$(git -C "$target_path" symbolic-ref --quiet --short HEAD 2>/dev/null) ||
+            existing_branch=""
+          if [[ "$existing_branch" != "$target_branch" ]]; then
+            problems+=("target branch mismatch in $target_path: expected $target_branch, found ${existing_branch:-detached HEAD}")
+          fi
+
+          if [[ -z "$checked_out" ]]; then
+            problems+=("target path is not the registered worktree for branch $target_branch: $target_path")
+          elif [[ "$checked_out" != "$target_physical" ]]; then
+            problems+=("worktree conflict:
+      repository: $repo_name
+      requested branch: $target_branch
+      existing worktree: $checked_out
+      requested workspace path: $target_path")
+          elif [[ -n "$target_repo_root" && -n "$target_common_dir" &&
+                  "$target_repo_root" == "$target_physical" &&
+                  "$target_common_dir" == "${common_dirs[index]}" &&
+                  "$target_origin" == "${origins[index]}" &&
+                  "$existing_branch" == "$target_branch" ]]; then
+            target_action="REUSE_WORKTREE"
+          fi
+        fi
+      elif [[ -n "$checked_out" ]]; then
+        problems+=("worktree conflict:
+      repository: $repo_name
+      requested branch: $target_branch
+      existing worktree: $checked_out
+      requested workspace path: $target_path")
       fi
 
       target_actions[index]="$target_action"
@@ -371,7 +471,8 @@ task-workspace() {
     printf '  %s\n' "${repo_names[index]}"
     printf '    source: %s @ %s\n' "${source_refs[index]}" "${source_commits[index]:0:7}"
     printf '    target: %s' "${target_actions[index]}"
-    [[ "${target_actions[index]}" == REUSE_BRANCH ]] &&
+    [[ "${target_actions[index]}" == REUSE_BRANCH ||
+       "${target_actions[index]}" == REUSE_WORKTREE ]] &&
       printf ' @ %s (merge-base %s)' "${target_commits[index]:0:7}" "${target_merge_bases[index]:0:7}"
     printf '\n    path:   %s\n' "${target_paths[index]}"
   done
@@ -384,7 +485,9 @@ task-workspace() {
 
   for (( index = 1; index <= ${#repo_names[@]}; index++ )); do
     source="${repositories[index]:A}"
-    if [[ "${target_actions[index]}" == CREATE_BRANCH ]]; then
+    if [[ "${target_actions[index]}" == REUSE_WORKTREE ]]; then
+      continue
+    elif [[ "${target_actions[index]}" == CREATE_BRANCH ]]; then
       git -C "$source" worktree add -b "$target_branch" \
         "${target_paths[index]}" "${source_commits[index]}" || {
         echo "Task workspace creation failed after partial progress." >&2
@@ -410,7 +513,175 @@ task-workspace() {
     created+=("${target_paths[index]}")
   done
 
+  # Do not publish a workspace contract until every canonical path proves that
+  # it is the requested, physically contained worktree.
+  for (( index = 1; index <= ${#repo_names[@]}; index++ )); do
+    source="${repositories[index]:A}"
+    target_path="${target_paths[index]}"
+
+    if [[ -L "$target_path" || ! -d "$target_path" ]]; then
+      invariant_problems+=("canonical path is not a real directory: $target_path")
+      continue
+    fi
+    [[ -w "$target_path" ]] ||
+      invariant_problems+=("canonical path is not writable: $target_path")
+
+    target_physical="${target_path:A}"
+    [[ "$target_physical" == "$workspace_path"/* ]] ||
+      invariant_problems+=("canonical path is outside the workspace root: $target_path")
+
+    target_repo_root=$(git -C "$target_path" rev-parse --show-toplevel 2>/dev/null) || {
+      invariant_problems+=("canonical path is not a Git worktree: $target_path")
+      target_repo_root=""
+    }
+    if [[ -n "$target_repo_root" ]]; then
+      target_repo_root="${target_repo_root:A}"
+      [[ "$target_repo_root" == "$target_physical" ]] ||
+        invariant_problems+=("canonical path is not an exact Git worktree root: $target_path")
+    fi
+
+    target_common_dir=$(git -C "$target_path" rev-parse --git-common-dir 2>/dev/null) || {
+      invariant_problems+=("cannot resolve canonical Git common directory: $target_path")
+      target_common_dir=""
+    }
+    if [[ -n "$target_common_dir" ]]; then
+      [[ "$target_common_dir" == /* ]] || target_common_dir="$target_path/$target_common_dir"
+      target_common_dir="${target_common_dir:A}"
+      [[ "$target_common_dir" == "${common_dirs[index]}" ]] ||
+        invariant_problems+=("canonical path belongs to a different repository: $target_path")
+    fi
+
+    target_origin=$(git -C "$target_path" remote get-url origin 2>/dev/null) || {
+      invariant_problems+=("origin remote not found in canonical worktree: $target_path")
+      target_origin=""
+    }
+    [[ "$target_origin" == "${origins[index]}" ]] ||
+      invariant_problems+=("canonical origin does not match requested repository: $target_path")
+
+    existing_branch=$(git -C "$target_path" symbolic-ref --quiet --short HEAD 2>/dev/null) ||
+      existing_branch=""
+    [[ "$existing_branch" == "$target_branch" ]] ||
+      invariant_problems+=("canonical branch mismatch in $target_path: expected $target_branch, found ${existing_branch:-detached HEAD}")
+
+    invariant_checked_out=$(git -C "$source" worktree list --porcelain 2>/dev/null | awk \
+      -v wanted="refs/heads/$target_branch" \
+      '$1 == "worktree" { path = substr($0, 10) } $1 == "branch" && $2 == wanted { print path; exit }')
+    [[ -z "$invariant_checked_out" ]] || invariant_checked_out="${invariant_checked_out:A}"
+    [[ "$invariant_checked_out" == "$target_physical" ]] ||
+      invariant_problems+=("canonical path is not the registered worktree for branch $target_branch: $target_path")
+  done
+
+  if (( ${#invariant_problems[@]} > 0 )); then
+    echo "Task workspace invariant check failed:" >&2
+    for requested_branch in "${invariant_problems[@]}"; do
+      echo "  - $requested_branch" >&2
+    done
+    echo "No workspace contract was generated; no automatic cleanup was performed." >&2
+    return 1
+  fi
+
+  repositories_json='[]'
+  for (( index = 1; index <= ${#repo_names[@]}; index++ )); do
+    repositories_json=$(jq -c \
+      --arg name "${repo_names[index]}" \
+      --arg path "${target_paths[index]}" \
+      --arg branch "$target_branch" \
+      --arg origin "${origins[index]}" \
+      '. + [{name: $name, path: $path, branch: $branch, origin: $origin}]' \
+      <<<"$repositories_json") || {
+      echo "task-workspace: failed to prepare repository metadata" >&2
+      return 1
+    }
+  done
+
+  manifest_tmp=$(mktemp "$workspace_path/.task-workspace.json.tmp.XXXXXX") || {
+    echo "task-workspace: failed to create temporary manifest" >&2
+    return 1
+  }
+  agents_tmp=$(mktemp "$workspace_path/AGENTS.md.tmp.XXXXXX") || {
+    command rm -f -- "$manifest_tmp"
+    echo "task-workspace: failed to create temporary workspace instructions" >&2
+    return 1
+  }
+
+  if ! jq -n \
+    --arg workspace "$workspace_name" \
+    --arg goal "$goal" \
+    --arg source_branch "$source_branch" \
+    --arg root "$workspace_path" \
+    --argjson repositories "$repositories_json" \
+    '{
+      workspace: $workspace,
+      goal: (if $goal == "" then null else $goal end),
+      sourceBranch: $source_branch,
+      root: $root,
+      repositories: $repositories
+    }' >"$manifest_tmp"; then
+    command rm -f -- "$manifest_tmp" "$agents_tmp"
+    echo "task-workspace: failed to generate workspace manifest" >&2
+    return 1
+  fi
+
+  if ! {
+    printf '# Task Workspace\n\n'
+    printf 'Goal:\n\n%s\n\n' "${goal:-Not specified.}"
+    printf 'Workspace root:\n\n%s\n\n' "$workspace_path"
+    cat <<'EOF'
+## Canonical repository contract
+
+- The repositories listed below are the canonical repositories for this task.
+- Work only in these existing worktrees.
+- Never create replacement clones for a repository already present in this workspace.
+- Never create sibling or ad-hoc repositories such as `*-edit`, `*-tmp`, `*-copy`, `*-new`, or temporary replacement clones.
+- Never clone around a dirty worktree, an active merge or rebase, a detached HEAD, a branch already checked out elsewhere, filesystem permissions, or tooling limitations.
+- If a canonical worktree cannot be safely modified, **STOP** and report the exact blocker.
+- Never silently switch the implementation to `main` or another clone.
+- Before editing a repository, inspect `git status`, the current branch, and `HEAD`.
+- Repository-local `AGENTS.md` and `CLAUDE.md` instructions remain applicable in addition to this workspace-level contract.
+
+## Canonical repositories
+
+EOF
+    for (( index = 1; index <= ${#repo_names[@]}; index++ )); do
+      printf -- '- %s\n  path: %s\n  branch: %s\n\n' \
+        "${repo_names[index]}" "${target_paths[index]}" "$target_branch"
+    done
+  } >"$agents_tmp"; then
+    command rm -f -- "$manifest_tmp" "$agents_tmp"
+    echo "task-workspace: failed to generate workspace instructions" >&2
+    return 1
+  fi
+
+  chmod 644 "$manifest_tmp" "$agents_tmp" || {
+    command rm -f -- "$manifest_tmp" "$agents_tmp"
+    echo "task-workspace: failed to set workspace contract permissions" >&2
+    return 1
+  }
+  mv -- "$manifest_tmp" "$manifest_path" || {
+    command rm -f -- "$manifest_tmp" "$agents_tmp"
+    echo "task-workspace: failed to install workspace manifest" >&2
+    return 1
+  }
+  mv -- "$agents_tmp" "$agents_path" || {
+    command rm -f -- "$agents_tmp"
+    echo "task-workspace: failed to install workspace instructions" >&2
+    return 1
+  }
+
+  # Preserve the established behavior: the caller lands at the workspace root,
+  # never inside one of the child repositories.
   cd -- "$workspace_path" || return 1
+
+  printf 'Workspace ready:\n  %s\n\n' "$workspace_path"
+  printf 'Goal:\n  %s\n\n' "${goal:-Not specified.}"
+  printf 'Canonical repositories:\n'
+  for (( index = 1; index <= ${#repo_names[@]}; index++ )); do
+    printf '  %s → %s\n' "${repo_names[index]}" "$target_branch"
+  done
+  printf '\nWorkspace contract:\n  %s\n\n' "$agents_path"
+  printf '%s\n' \
+    'AI agents must use these worktrees.' \
+    'If a canonical worktree is blocked, report the blocker instead of creating another clone.'
 }
 
 # Select one immediate child repository in the current task workspace and open

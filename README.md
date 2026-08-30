@@ -165,8 +165,38 @@ copyable update. They never weaken a client's sandbox globally.
 - `kprod` always passes an explicit production context and asks for `yes` before mutating verbs.
 - `reload` restarts the current shell with `exec zsh -l`.
 - `docker` and `docker-compose` map to `nerdctl` and `nerdctl compose`.
+- `task-workspace --from <source-branch> [--goal <objective>] <workspace-name>
+  <repository...>` creates or reuses canonical Git worktrees and generates the task contract.
 - `skills` lists every skill in `~/.agents/skills`; `skills <term>` filters names and
   descriptions; `skills -d [term]` includes descriptions. Override the root with `SKILLS_DIR`.
+
+### Managed task workspaces
+
+`task-workspace` keeps its existing branch model: each repository uses the workspace name as
+its target branch unless `--target-branch` is supplied, and the target branch is created from
+the explicit `--from` branch only when it does not already exist. `--workspace` can still
+override the default `~/workspaces/<workspace-name>` root.
+
+```sh
+task-workspace \
+  --from main \
+  --goal "Implement worker lifecycle while preserving existing repository contracts." \
+  feat/worker-lifecycle \
+  ~/projects/provision-worker \
+  ~/projects/app-stack-operator
+```
+
+The workspace root contains `.task-workspace.json`, a concise generated `AGENTS.md`, and one
+real Git worktree per repository. Canonical children are never symlinks or replacement
+clones. A rerun validates and reuses matching worktrees, then regenerates both contract files.
+An unrelated target path, mismatched repository/origin/branch, detached checkout, or target
+branch checked out in another worktree is a hard failure that requires explicit user
+resolution.
+
+The shared Codex/Claude `SessionStart` hook resolves the nearest `.task-workspace.json` from
+the session working directory and injects the goal, canonical root, and instruction to read
+the workspace `AGENTS.md`. Repository-local `AGENTS.md` and `CLAUDE.md` files remain additive
+and authoritative for repository-specific implementation rules.
 
 ### Local tuicr review
 
@@ -177,10 +207,10 @@ and press `Tab` to select its semantic type. After writing comments, tell the
 agent `Review ready.`; it reads each repository's persisted session through the
 scoped `tuicr review` CLI and produces dispositions before editing.
 
-The task-workspace root is not a Git repository by design. Start each child
-repository's applicable instructions explicitly when processing comments; an
-agent started at the task root may not automatically load every child's
-project-specific instructions, hooks, or root configuration.
+The task-workspace root is not a Git repository by design. Its generated `AGENTS.md` defines
+the canonical task boundaries, while each child's applicable instructions must still be
+loaded when processing that repository; an agent started at the task root may not
+automatically load every child's project-specific instructions, hooks, or root configuration.
 
 ## Containers and local Kubernetes
 
@@ -243,6 +273,7 @@ git diff --check
 bash -n bootstrap.sh scripts/setup-ai.sh
 zsh -n zsh/.aliases
 jq empty claude/.claude/settings.json codex/.codex/hooks.json
+bash scripts/test-task-workspace.sh
 bash scripts/test-ai-config.sh
 bash scripts/setup-ai.sh
 if command -v claude >/dev/null; then claude doctor; fi
