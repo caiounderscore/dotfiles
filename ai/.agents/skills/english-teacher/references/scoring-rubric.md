@@ -1,94 +1,142 @@
-# Strict English scoring rubric
+# Adaptive English scoring rubric
 
-This is the single source of truth for scoring in the always-on English Notes routine,
-`english-teacher`, and English language warm-ups.
+This is the scoring source of truth for `english-teacher`, the always-on `English Notes`
+routine, and English warm-ups. Apply it to intentionally English, user-authored prose only.
+Do not score Portuguese, German exercises, code, commands, paths, logs, stack traces, JSON,
+YAML, Terraform, Kubernetes manifests, quoted documentation, pasted third-party text, or
+generated output.
 
-This rubric applies prospectively from 2026-07-10. Keep earlier repair rows as historical
-records and treat the summary counts at adoption as the baseline; do not reinterpret or
-recalculate old entries under the stricter evidence rules.
+## Canonical categories
 
-Read the recurring-error summary before scoring. For each category affected by the current
-message, calculate an effective count as `stored count + 1`; classify and score using that
-effective count, then write the increment to the log. This makes the third occurrence chronic
-rather than delaying the chronic penalty until the fourth.
+Use these stable IDs for all new state, repairs, and log rows. Display labels may be used in
+feedback. Historical aliases remain readable but must map to an ID rather than creating a new
+category.
 
-## Canonical recurrence categories
+| ID | Display label | Includes |
+|---|---|---|
+| `spelling` | Spelling | spelling and typographical errors |
+| `capitalization_and_punctuation` | Capitalization and punctuation | capitalization, punctuation, apostrophes, and contraction mechanics |
+| `articles_prepositions_natural_phrasing` | Articles, prepositions, and natural phrasing | articles, prepositions, collocations, literal translations, sentence structure, and naturalness |
+| `verb_forms_and_agreement` | Verb forms and agreement | tense, verb forms, subject–verb agreement, and number agreement |
+| `conjunctions_and_fixed_expressions` | Conjunctions and fixed expressions | conjunctions, fixed expressions, and phrasal verbs |
+| `word_choice` | Word choice | incorrect general words or semantic contrasts |
+| `technical_terminology` | Technical terminology | official technical, product, or feature names |
 
-Use these exact category names in new summary updates, error rows, and repairs:
+Do not count one correction span twice. Prefer the category that describes the required
+correction. Keep the existing human-readable history intact; normalize only new entries.
+For a message containing errors, append one error-log row and increment each affected canonical
+category once, even when several distinct spans in that category receive deductions.
 
-| Canonical category | Includes |
-|---|---|
-| Spelling | spelling and typographical errors |
-| Capitalization and punctuation | capitalization, punctuation, apostrophes, and contraction mechanics |
-| Articles, prepositions, and natural phrasing | articles, prepositions, collocations, literal translations, sentence structure, and unnatural phrasing |
-| Verb forms and agreement | verb form or tense, subject-verb agreement, and number agreement |
-| Conjunctions and fixed expressions | conjunctions, fixed expressions, and phrasal verbs |
-| Word choice | an incorrect general word or semantic contrast not covered above |
-| Technical terminology | incorrect official technical, product, or feature names |
+## Severity and classification
 
-Historical error rows contain shorter aliases such as `article`, `phrasing`, `verb form`, and
-`terminology`; map new instances to the canonical names above and do not create new aliases.
-When one correction span could fit more than one category, choose the category that best
-describes the required correction and do not count that span twice. Category-level recurrence
-is intentionally strict: once a canonical category is chronic, a new error in that category
-inherits chronic status even if its exact wording is new.
+Severity is independent of recurrence:
 
-## Classification
+| Severity | Meaning | Typical examples | Default base penalty |
+|---:|---|---|---:|
+| 1 | Cosmetic/mechanical | missing final period, lowercase opening, `Ok` → `Okay`, minor technical capitalization | 3 |
+| 2 | Lexical/localized | spelling, wrong technical capitalization, wrong word form, `than` → `then` | 6 |
+| 3 | Structural/naturalness | article or preposition error, demonstrative disagreement, Portuguese-influenced collocation, wrong verb complement, countability | 10 |
+| 4 | Major structural | malformed direct question, missing subject, incorrect modal, major reconstruction, ambiguous meaning | 14 |
 
-- **First-time**: the effective count is one.
-- **Logged, non-chronic**: the effective count is two.
-- **Chronic**: the effective count is three or more.
-- **Trivial/mechanical**: spelling, capitalization, apostrophe, or punctuation errors that do
-  not change the intended meaning.
-- **Substantive**: grammar, agreement, articles, prepositions, word choice, collocation, or
-  literal-translation errors that reduce clarity or naturalness. Treat a mechanical error as
-  substantive when it changes meaning.
+Use the default inside the requested ranges (`-2..-4`, `-4..-7`, `-7..-12`, `-10..-15`).
+Use a lower or higher value within that range only when the specific context justifies it and
+show the reason in score arithmetic. Do not invent an error for a valid variant.
 
-Recurrence and severity are independent: an error may be both chronic and trivial. Grade
-standard professional English even in short chat messages. Do not invent errors for rigor or
-penalize valid variants, code, commands, paths, quoted text, or clearly deliberate stylization.
+Naturalness classification for Portuguese interference:
 
-## Calculation
+- `WRONG`: grammar, meaning, or collocation is incorrect; usually severity 3 or 4.
+- `UNDERSTANDABLE_BUT_UNNATURAL`: meaning is clear but the construction is a literal or
+  non-idiomatic transfer; usually severity 2 or 3 and still receives meaningful weight.
+- `NATURAL`: no deduction.
+- `NATIVE_LIKE`: no deduction and possible positive transfer evidence when it exercises a
+  known target.
 
-Start at 100. Use this deduction table:
+## Deterministic calculation
 
-| Category state | Trivial/mechanical | Substantive |
-|---|---:|---:|
-| First-time | -2 | -4 |
-| Logged, non-chronic | -4 | -7 |
-| Chronic | -6 | -10 |
+Start at `100`. For each distinct error span calculate:
 
-Within each affected category, charge the highest-severity error first at the full table
-amount. For every additional distinct error in that category, charge half the table amount
-for that error's own severity, rounded up. A distinct error is a separate text span requiring
-an independent correction; repeating the same mistake in another span counts again. Charge
-each span once, using the canonical-category rule above.
+```text
+penalty = round_half_up(base_penalty[severity] × recurrence_multiplier × confidence)
+```
 
-After deductions, apply the strictest relevant hard cap:
+Use these multipliers:
 
-- any logged, non-chronic error: 85;
-- one chronic category containing only trivial/mechanical errors: 80;
-- one chronic category containing a substantive error: 75;
-- two chronic categories in the same message: 65;
-- three or more chronic categories in the same message: 55.
+```text
+new pattern/category:       1.00
+known recurring pattern:    1.35
+high-frequency pattern:     1.60
+```
 
-The final score is the lower of the raw score and the applicable cap, with a floor of zero.
-Show the arithmetic compactly, for example: `100 - 6 - 3 = 91; chronic-trivial cap 80 -> 80`.
-Do not soften the result merely because the message remains understandable. A short clean
-message may score 100, but its brevity is not evidence that a recurring pattern was repaired.
+`confidence` is `1.0` for high-confidence corrections, `0.9` for a plausible correction with
+context, and `0.75` when the wording may be a valid variant. Do not charge a low-confidence
+correction merely to lower a score.
 
-## Response gate
+An error is known when its pattern is active in state or its canonical category has prior
+evidence. A pattern is high-frequency only when the exact pattern has at least five historical
+errors and appeared in the recent-message window; a large lifetime category count alone is
+never enough. Historical counts set training priority, not unlimited punishment.
 
-Apply the gate after calculating the final score for user-authored English:
+Keep the recommended competence balance visible when choosing and reviewing deductions:
+
+```yaml
+grammar_and_structure: 30
+natural_phrasing_articles_prepositions: 30
+word_choice: 15
+fluency_and_clarity: 15
+surface_correctness: 10
+```
+
+Surface correctness is a budget, not a second score: total mechanical deductions for spelling,
+capitalization, punctuation, and technical capitalization are capped at `10` for one message.
+If a surface error changes meaning, classify it as substantive and charge it outside this
+budget. This explicit protection means `Okay, go ahead.` cannot be blocked by typography alone.
+Structural and naturalness penalties are never replaced by the surface cap.
+
+Clamp the final result to `0..100`. For every blocked message, persist a `blocking_reason` made
+of the visible deduction list; it must be reproducible from the scored spans. Show enough
+arithmetic to reproduce it, for example:
+`100 - round(14×1.35) - round(10×1.60) - 3 = 62; final 62`. The threshold is a communication gate, not a
+claim that `55` is good English.
+
+## Score bands and gate
+
+The hard gate constant is:
+
+```text
+MINIMUM_SCORE = 55
+```
+
+| Score | Interpretation | Behavior |
+|---:|---|---|
+| 95–100 | Excellent / essentially natural | normal answer; concise notes |
+| 90–94 | Very strong | normal answer; concise notes |
+| 80–89 | Good, noticeable issues | normal answer; concise notes |
+| 70–79 | Functional, important patterns remain | answer; `Required practice` drills |
+| 55–69 | Weak but acceptable for continuing | answer; `Required practice` drills |
+| 0–54 | Repair required | block non-urgent underlying task |
+
+The response contract remains compatible with the shared `English Notes` routine:
 
 | Final score | Required behavior |
 |---:|---|
 | 80–100 | Handle the request normally and append English Notes with concise tips. |
 | 55–79 | Handle the request normally, append English Notes, and label the category mini-drills as `Required practice`. |
-| Below 55 | Do not perform or substantially answer a non-urgent request yet. Give English Notes, ask the user to rewrite the request using the correction, and resume the original request as soon as a rewrite scores 55 or higher. |
+| Below 55 | Do not perform or substantially answer a non-urgent request yet. |
 
-The gate is instructional friction, not a safety boundary. Regardless of score, provide the
-minimum complete response needed for:
+Apply the gate after scoring and before task execution:
+
+```text
+if score < 55 and no urgent/protective exception:
+    preserve pending_task
+    persist blocking_reason = visible deduction list
+    return diagnosis + active rewrite exercise
+else:
+    answer the task
+```
+
+The gate must correspond primarily to multiple important recurring errors, serious structural
+failure, or loss of clarity. A minor-only message remains above the threshold. Regardless of
+score, provide the minimum complete response needed for:
 
 - active incidents, production degradation, outages, or other time-sensitive operational work;
 - security, privacy, credential exposure, data-loss prevention, or personal-safety concerns;
@@ -96,24 +144,28 @@ minimum complete response needed for:
 - accessibility needs; and
 - the language correction, drill, or warm-up itself.
 
-For an exception, handle the urgent or protective part, still append English Notes, and ask
-for a corrected rewrite only after the immediate risk is addressed. Do not use the gate to
-withhold a safety refusal or a necessary clarifying question. Continue excluding quoted text,
-code, logs, commands, and paths from scoring. The gate uses the current message's final score;
-do not invent rolling averages, probation periods, or additional thresholds.
+For an urgent or protective exception, address the immediate risk, still append English Notes,
+and request a corrected rewrite only after the risk is handled.
 
-## Log and repair evidence
+## Repair and positive evidence
 
-- For a message containing one or more errors, append one error-log row and increment each
-  affected category once, even when the score includes extra deductions for multiple errors
-  in that category.
-- Use only the canonical category names in new log entries.
-- Decrement a recurring category by one only when the message correctly exercises a specific
-  failed target already present in the summary note, an earlier error row, or a queued drill.
-  The repair row must name that target and cite its prior log evidence. A merely correct but
-  unrelated construction in the same broad category, absence of the error, avoidance of the
-  construction, or a message too short to test it is not repair evidence.
-- If the same category contains an error in the current message, increment it and do not also
-  decrement it.
-- Acknowledge real repairs, record them in the Repairs table, and provide one mini-drill for
-  every recurring category that appeared.
+When blocked, show at most three pedagogically valuable targets. Mark recurring targets with
+`🔁` and new ones with `🆕`. Give hints and fragments, not normally the full corrected request.
+The user must reconstruct it.
+
+When a rewrite scores `>=55`, record an immediate repair for every specific failed target it
+actually exercises, mark the pattern `transfer_pending`, and resume the preserved task. An
+immediate repair improves the current interaction but does not prove mastery.
+
+For a passing immediate repair that exercises a specific failed target, decrement the current
+priority/category count once under the existing repair convention and record the cited
+before→after value in the Repairs table. Do not decrement more than once per category for one
+message, and do not decrement a category that still contains an error in that message. Keep
+lifetime `errors` monotonic; later unprompted success is the stronger evidence for reducing
+pattern recurrence priority.
+
+For an unprompted correct use of a previously failed pattern, record `positive_evidence` with
+`type: spontaneous` and decrement that pattern's open recurrence priority once. After multiple
+spaced spontaneous successes, move the pattern through `improving` to `stable`. Do not
+acknowledge every success and never claim mastery from absence of an error or from copying a
+correction.
