@@ -71,6 +71,10 @@
 - Use the `english-teacher` and `german-teacher` skills for focused practice.
 - Language state belongs under `~/.agents/state/language/`, never in Git. If the sandbox blocks an update, request scoped approval or provide a copyable update without weakening the sandbox.
 
+## Specs and Tickets
+
+- When a repository has no `## Agent skills` config, the issue tracker for `to-spec`, `to-tickets`, `triage`, `wayfinder`, and `implement-spec` is `~/.agents/skills/orca-tickets/issue-tracker.md`, mirrored in Orca by the `orca-tickets` skill. Use Jira through Orca only when I ask.
+
 ## ADRs
 
 - Keep each fact in one authoritative place and link to it instead of copying volatile inventories or architecture details into agent instructions.

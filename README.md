@@ -46,8 +46,8 @@ format. Those settings remain under their vendor packages or unmanaged runtime d
 | Migration backups | `~/.agents/state/backups/ai-migration-<timestamp>/` (untracked) |
 
 The repository intentionally vendors only personal portable skills: `reload`,
-`session-report`, `language-warmup`, `english-teacher`, `german-teacher`, and
-`tuicr-review`. The 1,500+ installed third-party skills remain outside Git.
+`session-report`, `language-warmup`, `english-teacher`, `german-teacher`, `tuicr-review`, and
+`orca-tickets`. The 1,500+ installed third-party skills remain outside Git.
 
 `~/.agents/.skill-lock.json` is also left unmanaged. The current file has safe provenance and
 content hashes for 20 skills, but no pinned revisions and no coverage for most installed
@@ -159,6 +159,10 @@ auth, history, installed skills, and project state.
 
 - `reload` refreshes applicable instructions, relevant memory, Git state, and discussed
   files without assuming a client-specific memory command.
+- `orca-tickets` is the default issue tracker for `to-spec`/`to-tickets` in repositories without
+  their own config: markdown in the primary checkout's self-ignored `.scratch/`, mirrored in Orca
+  as one orchestration Run per spec with a Task per ticket and its blocking edges. Jira through
+  Orca is used only on request.
 - `session-report` gives evidence-grounded prompt/context feedback and includes usage only
   when a client already exposes authoritative metadata.
 - `language-warmup` is manually invokable and is injected by supported startup hooks when the
