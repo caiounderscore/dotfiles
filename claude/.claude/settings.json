@@ -69,5 +69,6 @@
   "theme": "dark-ansi",
   "preferredNotifChannel": "ghostty",
   "remoteControlAtStartup": false,
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "autoCompactWindow": 300000
 }

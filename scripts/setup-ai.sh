@@ -644,7 +644,7 @@ validate_stow_package_sources() {
         claude:.claude|claude:.claude/CLAUDE.md|claude:.claude/settings.json|claude:.claude/hooks|claude:.claude/hooks/lang-warmup.sh|claude:.claude/agents|claude:.claude/agents/*.md)
           continue
           ;;
-        codex:.codex|codex:.codex/AGENTS.md|codex:.codex/hooks.json|codex:.codex/hooks|codex:.codex/hooks/lang-warmup.sh|codex:.codex/hooks/turn-complete-sound.sh|codex:.codex/mcp-profiles|codex:.codex/mcp-profiles/kubernetes-safe.toml|codex:.codex/skills|codex:.codex/skills/tuicr-review)
+        codex:.codex|codex:.codex/AGENTS.md|codex:.codex/agents|codex:.codex/agents/*.toml|codex:.codex/hooks.json|codex:.codex/hooks|codex:.codex/hooks/lang-warmup.sh|codex:.codex/hooks/turn-complete-sound.sh|codex:.codex/mcp-profiles|codex:.codex/mcp-profiles/kubernetes-safe.toml|codex:.codex/skills|codex:.codex/skills/tuicr-review)
           continue
           ;;
         openclaude:.openclaude|openclaude:.openclaude/CLAUDE.md)

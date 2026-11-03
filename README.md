@@ -11,8 +11,9 @@ dotfiles/
 │   ├── AGENTS.md                 # canonical personal instructions
 │   └── skills/                   # user-owned portable skills only
 ├── claude/.claude/               # Claude settings and thin adapters
-│   └── agents/                   # Sonnet implementer/validator, Haiku verifier subagents
+│   └── agents/                   # Role and persona subagents (implementers, reviewers, verifier)
 ├── codex/.codex/                 # Codex instructions and hook adapters
+│   ├── agents/                   # Read-only planning lenses (platform, security, reliability)
 │   └── mcp-profiles/             # Portable MCP safety policy; no cluster paths or credentials
 ├── openclaude/.openclaude/       # OpenClaude instructions adapter and tracked defaults
 ├── opencode/.config/opencode/    # OpenCode instructions adapter
@@ -46,8 +47,8 @@ format. Those settings remain under their vendor packages or unmanaged runtime d
 | Migration backups | `~/.agents/state/backups/ai-migration-<timestamp>/` (untracked) |
 
 The repository intentionally vendors only personal portable skills: `reload`,
-`session-report`, `language-warmup`, `english-teacher`, `german-teacher`, `tuicr-review`, and
-`orca-tickets`. The 1,500+ installed third-party skills remain outside Git.
+`session-report`, `language-warmup`, `english-teacher`, `german-teacher`, `tuicr-review`,
+`orca-tickets`, `dev-flow`, `k8s-controller`, `bitbucket-pipelines`, and `igaming-correctness`. The 1,500+ installed third-party skills remain outside Git.
 
 `~/.agents/.skill-lock.json` is also left unmanaged. The current file has safe provenance and
 content hashes for 20 skills, but no pinned revisions and no coverage for most installed
@@ -61,7 +62,7 @@ skills, so it is useful for partial integrity checks—not full restoration.
 | Personal skills | Reads `~/.agents/skills` directly | `~/.claude/skills` points to `~/.agents/skills` | OpenClaude-managed skills stay separate | Reads `~/.agents/skills` directly |
 | Session warm-up | Machine-local `~/.codex/hooks.json`, seeded from the tracked baseline; marker-gated; review hook trust | User hook in `~/.claude/settings.json`; marker-gated | No tracked startup hook; rely on `CLAUDE.md` plus local user settings | No startup shell hook; invoke `language-warmup` manually |
 | Model/UI/permissions | Existing `~/.codex/config.toml`, unmanaged | Machine-local `~/.claude/settings.json`, seeded once from the tracked baseline because Claude rewrites it at runtime; project-local overrides stay per repository | `~/.openclaude/settings.json`, unmanaged | `~/.config/opencode/opencode.json` or `opencode.jsonc`, unmanaged |
-| Agent roles | Not configured | Opus main session orchestrates; `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` for untyped subagents and workflow agents; tracked `~/.claude/agents/` defines `implementer`, `validator` (Sonnet), and `verifier` (Haiku) | Not configured | Not configured |
+| Agent roles | Tracked `~/.codex/agents/` defines the read-only `platform_lens`, `security_lens`, and `reliability_lens` planning reviewers | Opus main session orchestrates; `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` for untyped subagents and workflow agents; tracked `~/.claude/agents/` defines `implementer`, `validator`, the `backend-go`, `platform-engineer`, `devops`, and `simplifier` personas, `reliability-reviewer` (Sonnet), `security-reviewer` (Opus), and `verifier` (Haiku) | Not configured | Not configured |
 | Kubernetes MCP | Tracked safety profile + global registration helper; cluster paths stay local | Configure separately for Claude if needed | Configure separately in local OpenClaude settings if needed | Configure separately in `opencode.json` or `opencode.jsonc` if needed |
 | Managed skills | `~/.codex/skills/.system`, never touched | Client/plugin-managed locations remain separate | `openclaude skills` inventory remains client-managed | No client-managed skill root to preserve |
 
@@ -163,6 +164,12 @@ auth, history, installed skills, and project state.
   their own config: markdown in the primary checkout's self-ignored `.scratch/`, mirrored in Orca
   as one orchestration Run per spec with a Task per ticket and its blocking edges. Jira through
   Orca is used only on request.
+- `dev-flow` maps Matt Pocock's flow onto two harnesses: Codex owns wayfinding, specs, tickets, and
+  triage; Claude Code implements with Opus orchestrating Sonnet implementers, reviews with Sonnet
+  validators and Haiku verifiers, and escalates to Fable only on repeated failure or high-risk diffs.
+  Tickets name their persona and risk; ponytail adds the Quality review axis and the shortcut ledger.
+- `k8s-controller`, `bitbucket-pipelines`, and `igaming-correctness` are short checklists that the
+  persona subagents preload or call where no vetted third-party skill exists.
 - `session-report` gives evidence-grounded prompt/context feedback and includes usage only
   when a client already exposes authoritative metadata.
 - `language-warmup` is manually invokable and is injected by supported startup hooks when the

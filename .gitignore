@@ -34,6 +34,9 @@ claude/.claude/agents/*
 codex/.codex/*
 !codex/.codex/AGENTS.md
 !codex/.codex/hooks.json
+!codex/.codex/agents/
+codex/.codex/agents/*
+!codex/.codex/agents/*.toml
 !codex/.codex/hooks/
 codex/.codex/hooks/*
 !codex/.codex/hooks/lang-warmup.sh

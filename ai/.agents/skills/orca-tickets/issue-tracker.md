@@ -18,8 +18,10 @@ markdown files on this machine; Orca mirrors them as orchestration tasks.
   `ready-for-human`, `wontfix`), then `claimed` while someone works on it and `resolved` when done.
 - A `Blocked by:` line lists ticket numbers, or `None`. A ticket is unblocked when every ticket it lists is
   `resolved`.
+- A `Persona:` line names the implementer agent for the ticket, and a `Risk: high` line marks a ticket that moves
+  money or touches concurrency, data migrations, or auth. The `dev-flow` skill defines both.
 - Comments append under a `## Comments` heading at the bottom.
-- Domain docs are single-context: `CONTEXT.md` and `docs/adr/` at the repository root. Proceed silently when they
+- Domain docs are single-context: `GLOSSARY.md` and `docs/adr/` at the repository root. Proceed silently when they
   are absent.
 
 ## When a skill says "publish to the issue tracker"

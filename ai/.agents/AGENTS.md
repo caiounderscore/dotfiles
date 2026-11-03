@@ -5,6 +5,7 @@
 - Project instructions override these personal defaults when they conflict.
 - Prioritize correctness and security, then simplicity and minimal change, then surfaced trade-offs.
 - Use judgment for trivial tasks; ask only when ambiguity materially changes the result.
+- In grilling or question rounds, mark your recommended answer as the default. I reply only to the questions I want to change; the rest take the default.
 - For non-trivial work, establish the objective, constraints, source of truth, and acceptance checks before editing.
 - State non-obvious assumptions, distinguish facts from inferences or proposals, and name materially different interpretations.
 
@@ -17,6 +18,7 @@
 - Prefer the minimum code that solves the stated problem; avoid speculative features and one-use abstractions.
 - Make surgical changes, match existing style, and leave unrelated pre-existing issues alone.
 - Preserve dirty and untracked work. Never normalize, regenerate, clean, or rewrite unrelated files merely to make the tree look consistent.
+- Commit and push feature and ticket branches without asking. Never push to `main`, `dev`, or a release or production branch, and never force-push, unless I ask.
 - Prefer repository-owned commands. Inspect what a command does before assuming it is read-only, run the smallest relevant check first, and report skipped or unavailable coverage rather than calling a partial pass complete.
 - When source-of-truth inputs change, use the repository's generator and review handwritten and generated diffs together; never edit generated output by hand.
 - Convert work into verifiable outcomes. For bugs, reproduce first; for behavior, test inputs; for refactors, verify before and after.
@@ -57,7 +59,7 @@
 
 ## English and German
 
-- Reply in English unless I ask for Portuguese. Be direct and prefer clear wording over ornate vocabulary.
+- Reply in Brazilian Portuguese unless I ask for another language. Be direct and prefer clear wording over ornate vocabulary.
 - When I write in English, append `English Notes` to every response.
 - Read `~/.agents/state/language/english-mistakes-log.md` when accessible and apply the authoritative strict rubric in `~/.agents/skills/english-teacher/references/scoring-rubric.md`, then include:
   1. a recurring-error watch when applicable;
@@ -74,6 +76,7 @@
 ## Specs and Tickets
 
 - When a repository has no `## Agent skills` config, the issue tracker for `to-spec`, `to-tickets`, `triage`, `wayfinder`, and `implement-spec` is `~/.agents/skills/orca-tickets/issue-tracker.md`, mirrored in Orca by the `orca-tickets` skill. Use Jira through Orca only when I ask.
+- Codex plans and Claude Code builds; the `dev-flow` skill defines which harness, skill, and model own each phase.
 
 ## ADRs
 

@@ -196,6 +196,13 @@ test_empty_home_idempotency() {
       -ef "$FIXTURE_REPO_PHYSICAL/claude/.claude/agents/$agent.md" ]] || \
       fail "Claude $agent agent was not linked"
   done
+  [[ -d "$physical_home/.codex/agents" && ! -L "$physical_home/.codex/agents" ]] || \
+    fail "Codex agents directory was folded or not created"
+  for agent in platform-lens security-lens reliability-lens; do
+    [[ "$physical_home/.codex/agents/$agent.toml" \
+      -ef "$FIXTURE_REPO_PHYSICAL/codex/.codex/agents/$agent.toml" ]] || \
+      fail "Codex $agent agent was not linked"
+  done
   [[ -f "$physical_home/.claude/settings.json" && ! -L "$physical_home/.claude/settings.json" ]] || \
     fail "Claude settings.json was not seeded as a machine-local file"
   cmp -s "$FIXTURE_REPO_PHYSICAL/claude/.claude/settings.json" \
