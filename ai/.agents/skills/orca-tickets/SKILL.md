@@ -22,6 +22,11 @@ skill describes, and pass `--json`.
    `Orca task: <task_id>` under the ticket's `Status:` line.
 4. Show the user `orca orchestration task-list --run <run_id> --brief`.
 
+- Inside an Orca terminal, pass this coordinator's handle as `--from`; find it in `orca terminal list --json` by the
+  worktree of the current directory.
+- Pass `--deps` as one quoted argument built with `jq -nc '$ARGS.positional' --args <ids...>`. zsh does not split an
+  unquoted variable into words, so a hand-joined list breaks for tickets with several blockers.
+
 ## Implement the frontier
 
 Only when the user asks to implement the tickets. Load `orca skills get orchestration` first; it governs the loop.
