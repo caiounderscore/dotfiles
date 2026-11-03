@@ -53,17 +53,19 @@ watch() {
   hwatch "${opts[@]}" "$@"
 }
 
-# Kubernetes environment shortcuts. dev/prod context names are placeholders
-# until real clusters get added to kubeconfig; local defaults to the real
-# Colima k3s context. sandbox uses its own kubeconfig file rather than a
-# context in the default one — its cluster/context/user names are the generic
-# kubeadm defaults ("kubernetes-admin@kubernetes"), which collide with any
-# other kubeadm-provisioned cluster's names, so it can't be safely merged in.
-# Override per machine in .zshrc.local, e.g. `export K8S_PROD_CONTEXT=my-real-prod-context`.
+# Kubernetes environment shortcuts. local/dev use contexts in the default
+# kubeconfig. sandbox and production each use a separate kubeconfig file so
+# their credentials and current-context state cannot collide with other
+# clusters. The production file is an ephemeral break-glass credential.
 : ${K8S_LOCAL_CONTEXT:=colima}
-: ${K8S_SANDBOX_KUBECONFIG:=$HOME/.kube/config-remote}
+: ${K8S_SANDBOX_KUBECONFIG:=$HOME/.bladecp-sandbox/talos/generated/kubeconfig}
+: ${K8S_SANDBOX_CONTEXT:=admin@bcp-sandbox-control-plane}
 : ${K8S_DEV_CONTEXT:=dev}
-: ${K8S_PROD_CONTEXT:=prod}
+: ${K8S_PROD_CONTEXT:=bladecp-production}
+: ${K8S_PROD_KUBECONFIG:=$HOME/.kube/bladecp-production}
+: ${BCP_CONTROL_PLANE_REPO:=$HOME/projects/bladecp/gcp-k8s-control-plane}
+# The production API host and TLS name stay out of this public repo: set
+# K8S_PROD_API_HOST and K8S_PROD_TLS_SERVER_NAME in ~/.zshrc.local.
 
 # Low-risk environments: switch kubectl's current-context for the rest of the
 # session (convenience), then optionally run a command against it right away.
@@ -84,6 +86,14 @@ ksandbox() {
     echo "ksandbox: kubeconfig not found at $K8S_SANDBOX_KUBECONFIG" >&2
     return 1
   fi
+  # Fail closed: a later get-credentials/use-context in a ksandbox session
+  # writes into this file, and once retargeted it must not pass as sandbox.
+  local current
+  current=$(kubectl --kubeconfig "$K8S_SANDBOX_KUBECONFIG" config current-context 2>/dev/null)
+  if [ "$current" != "$K8S_SANDBOX_CONTEXT" ]; then
+    echo "ksandbox: current context in $K8S_SANDBOX_KUBECONFIG is '${current:-none}', expected $K8S_SANDBOX_CONTEXT" >&2
+    return 1
+  fi
   export KUBECONFIG="$K8S_SANDBOX_KUBECONFIG"
   echo "Switched to sandbox (using $K8S_SANDBOX_KUBECONFIG)"
   [ $# -eq 0 ] && return 0
@@ -97,38 +107,231 @@ kdev() {
   kubectl "$@"
 }
 
-# Production: never switches current-context (so a later bare `k`/`kubectl`
-# can't silently land on prod) — every call is a one-off --context=prod, and
-# mutating verbs require typing "yes" first. Verb detection assumes the verb
-# is $1 (e.g. `kprod delete pod x -n foo`); global flags before the verb
-# (e.g. `kprod -n foo delete ...`) aren't recognized as mutating.
+# Generate the short-lived production kubeconfig through the private runner.
+# Talos secrets and derived files stay on the runner; only the final validated
+# kubeconfig is streamed to the dedicated local path.
+kprod-auth() {
+  local helper="$BCP_CONTROL_PLANE_REPO/scripts/fetch-ephemeral-admin-kubeconfig.sh"
+  if [ ! -x "$helper" ]; then
+    echo "kprod-auth: helper not found or not executable at $helper" >&2
+    return 1
+  fi
+  "$helper" --output "$K8S_PROD_KUBECONFIG"
+}
+
+# Production uses a dedicated kubeconfig only for the invoked command. It also
+# checks the Tailscale-routed API before any kubectl operation.
+typeset -ga _k8s_read_only_verbs=(
+  api-resources api-versions cluster-info describe diff events explain
+  get list logs options top version
+)
 typeset -ga _k8s_mutating_verbs=(
-  apply delete scale patch replace edit create expose set autoscale
-  cordon drain uncordon taint label annotate exec rollout
+  annotate apply attach auth autoscale certificate cordon cp create debug delete
+  drain edit exec expose label patch replace rollout run scale set taint uncordon
 )
 
 kprod() {
-  if [ $# -eq 0 ]; then
-    echo "Usage: kprod <kubectl-args...>"
+  local operation="" option_value="" confirm=""
+  local -a arguments=("$@")
+  local -i index=1
+
+  while (( index <= ${#arguments[@]} )); do
+    case "${arguments[index]}" in
+      --context)
+        (( index < ${#arguments[@]} )) || {
+          echo "kprod: --context requires a value" >&2
+          return 1
+        }
+        option_value="${arguments[index + 1]}"
+        [[ "$option_value" == "$K8S_PROD_CONTEXT" ]] || {
+          echo "kprod: refusing context override: $option_value" >&2
+          return 1
+        }
+        (( index += 2 ))
+        ;;
+      --context=*)
+        option_value="${arguments[index]#--context=}"
+        [[ "$option_value" == "$K8S_PROD_CONTEXT" ]] || {
+          echo "kprod: refusing context override: $option_value" >&2
+          return 1
+        }
+        (( index++ ))
+        ;;
+      --kubeconfig|--kubeconfig=*|--cluster|--cluster=*|--user|--user=*|--server|--server=*|-s|-s?*|--token|--token=*|--username|--username=*|--password|--password=*|--client-certificate|--client-certificate=*|--client-key|--client-key=*|--certificate-authority|--certificate-authority=*|--insecure-skip-tls-verify|--insecure-skip-tls-verify=*|--tls-server-name|--tls-server-name=*|--as|--as=*|--as-group|--as-group=*|--as-uid|--as-uid=*)
+        echo "kprod: refusing production target or identity override: ${arguments[index]}" >&2
+        return 1
+        ;;
+      *)
+        (( index++ ))
+        ;;
+    esac
+  done
+  index=1
+
+  if [ ! -f "$K8S_PROD_KUBECONFIG" ]; then
+    echo "kprod: ephemeral kubeconfig not found; run kprod-auth first" >&2
     return 1
   fi
-  local verb="$1"
-  if (( ${_k8s_mutating_verbs[(Ie)$verb]} )); then
-    printf '\033[1;31m⚠️  PRODUCTION (%s): about to run `kubectl %s`\033[0m\n' "$K8S_PROD_CONTEXT" "$*"
-    printf 'Type "yes" to continue: '
-    read confirm
-    if [ "$confirm" != "yes" ]; then
-      echo "Aborted."
+  if [ "$(kubectl --kubeconfig "$K8S_PROD_KUBECONFIG" config current-context 2>/dev/null)" != "$K8S_PROD_CONTEXT" ]; then
+    echo "kprod: kubeconfig does not select $K8S_PROD_CONTEXT" >&2
+    return 1
+  fi
+  if [ -z "${K8S_PROD_API_HOST-}" ]; then
+    echo "kprod: set K8S_PROD_API_HOST in ~/.zshrc.local" >&2
+    return 1
+  fi
+  if ! nc -z -w 5 "$K8S_PROD_API_HOST" 6443; then
+    echo "BladeCP production API is not reachable. Verify that Tailscale is connected." >&2
+    return 1
+  fi
+
+  if [ $# -gt 0 ]; then
+    while (( index <= ${#arguments[@]} )); do
+      case "${arguments[index]}" in
+        -n|--namespace|--request-timeout|--cache-dir|--profile|--profile-output|-v|--v|--vmodule)
+          (( index < ${#arguments[@]} )) || {
+            echo "kprod: ${arguments[index]} requires a value" >&2
+            return 1
+          }
+          (( index += 2 ))
+          ;;
+        -n?*|--namespace=*|--request-timeout=*|--cache-dir=*|--profile=*|--profile-output=*|-v?*|--v=*|--vmodule=*)
+          (( index++ ))
+          ;;
+        --context)
+          (( index += 2 ))
+          ;;
+        --context=*)
+          (( index++ ))
+          ;;
+        --disable-compression|--disable-compression=*|--match-server-version|--match-server-version=*|--warnings-as-errors|--warnings-as-errors=*)
+          (( index++ ))
+          ;;
+        -*)
+          echo "kprod: cannot safely classify option before operation: ${arguments[index]}" >&2
+          return 1
+          ;;
+        *)
+          operation="${arguments[index]}"
+          break
+          ;;
+      esac
+    done
+
+    [[ -n "$operation" ]] || {
+      echo "kprod: no kubectl operation found" >&2
+      return 1
+    }
+
+    if (( ${_k8s_mutating_verbs[(Ie)$operation]} )); then
+      printf '\033[1;31m⚠️  PRODUCTION (%s): about to run `kubectl %s`\033[0m\n' "$K8S_PROD_CONTEXT" "$*"
+      printf 'Type "yes" to continue: '
+      read -r confirm
+      if [ "$confirm" != "yes" ]; then
+        echo "Aborted."
+        return 1
+      fi
+    elif (( ! ${_k8s_read_only_verbs[(Ie)$operation]} )); then
+      echo "kprod: cannot safely classify kubectl operation: $operation" >&2
       return 1
     fi
+    KUBECONFIG="$K8S_PROD_KUBECONFIG" kubectl "$@"
+  else
+    echo "BladeCP production context is available through kprod commands."
   fi
-  # Explicit --kubeconfig, ignoring any KUBECONFIG left set by ksandbox — prod
-  # must never silently resolve against the wrong file.
-  kubectl --kubeconfig="$HOME/.kube/config" --context="$K8S_PROD_CONTEXT" "$@"
+}
+
+# Explicitly switch the current shell to the Talos-managed BladeCP production
+# cluster. Unlike kprod's command-scoped access, this makes subsequent `k` and
+# `kubectl` commands use the dedicated production kubeconfig until switched
+# away or the shell exits.
+kprodtalos() {
+  local context cluster server tls_server_name
+
+  if [ ! -f "$K8S_PROD_KUBECONFIG" ]; then
+    echo "kprodtalos: ephemeral kubeconfig not found; run kprod-auth first" >&2
+    return 1
+  fi
+  if [[ -z "${K8S_PROD_API_HOST-}" || -z "${K8S_PROD_TLS_SERVER_NAME-}" ]]; then
+    echo "kprodtalos: set K8S_PROD_API_HOST and K8S_PROD_TLS_SERVER_NAME in ~/.zshrc.local" >&2
+    return 1
+  fi
+
+  context=$(kubectl --kubeconfig "$K8S_PROD_KUBECONFIG" config current-context 2>/dev/null) || {
+    echo "kprodtalos: cannot read the production kubeconfig context" >&2
+    return 1
+  }
+  [[ "$context" == "$K8S_PROD_CONTEXT" ]] || {
+    echo "kprodtalos: kubeconfig does not select $K8S_PROD_CONTEXT" >&2
+    return 1
+  }
+
+  cluster=$(kubectl --kubeconfig "$K8S_PROD_KUBECONFIG" config view --minify -o 'jsonpath={.contexts[0].context.cluster}' 2>/dev/null) || {
+    echo "kprodtalos: cannot read the production kubeconfig cluster" >&2
+    return 1
+  }
+  server=$(kubectl --kubeconfig "$K8S_PROD_KUBECONFIG" config view --minify -o 'jsonpath={.clusters[0].cluster.server}' 2>/dev/null) || {
+    echo "kprodtalos: cannot read the production Kubernetes API endpoint" >&2
+    return 1
+  }
+  tls_server_name=$(kubectl --kubeconfig "$K8S_PROD_KUBECONFIG" config view --minify -o 'jsonpath={.clusters[0].cluster.tls-server-name}' 2>/dev/null) || {
+    echo "kprodtalos: cannot read the production TLS server name" >&2
+    return 1
+  }
+
+  [[ -n "$cluster" && "$server" == "https://$K8S_PROD_API_HOST:6443" && "$tls_server_name" == "$K8S_PROD_TLS_SERVER_NAME" ]] || {
+    echo "kprodtalos: refusing an unexpected production cluster target" >&2
+    return 1
+  }
+  if ! nc -z -w 5 "$K8S_PROD_API_HOST" 6443; then
+    echo "kprodtalos: BladeCP Talos API is unreachable; verify Tailscale" >&2
+    return 1
+  fi
+
+  export KUBECONFIG="$K8S_PROD_KUBECONFIG"
+  printf '\033[1;31mSwitched current shell to Talos production (%s).\033[0m\n' "$context"
+  printf 'Use kprod for guarded mutations; run kprodtalos-off to return to the default kubeconfig.\n'
+  [ $# -eq 0 ] && return 0
+  kprod "$@"
+}
+
+kprodtalos-off() {
+  if [ "${KUBECONFIG:-}" != "$K8S_PROD_KUBECONFIG" ]; then
+    echo "kprodtalos-off: the current shell is not using the Talos production kubeconfig"
+    return 0
+  fi
+  unset KUBECONFIG
+  echo "Returned to the default kubeconfig ($(kubectl config current-context 2>/dev/null || echo unknown))."
+}
+
+# Backward-compatible names for shells or notes that used the original typo.
+kprdtalos() { kprodtalos "$@"; }
+kprdtalos-off() { kprodtalos-off "$@"; }
+
+kprod-clean() {
+  if [ "${KUBECONFIG:-}" = "$K8S_PROD_KUBECONFIG" ]; then
+    unset KUBECONFIG
+  fi
+  if [ -e "$K8S_PROD_KUBECONFIG" ] || [ -L "$K8S_PROD_KUBECONFIG" ]; then
+    rm -f -- "$K8S_PROD_KUBECONFIG"
+    echo "Removed ephemeral BladeCP production kubeconfig."
+  else
+    echo "No ephemeral BladeCP production kubeconfig exists."
+  fi
 }
 
 # Restart the current shell session from scratch (fresh process, not just re-sourcing)
 alias reload='exec zsh -l'
+
+# Codex's native sleep inhibitor follows the turn lifecycle: active work keeps
+# macOS awake, while an open client waiting at the prompt does not.
+codex() {
+  if [[ "$OSTYPE" == darwin* ]]; then
+    command codex --enable prevent_idle_sleep "$@"
+  else
+    command codex "$@"
+  fi
+}
 
 # Drop-in Docker CLI compatibility on top of Colima + nerdctl (containerd runtime)
 alias docker='nerdctl'
@@ -684,8 +887,8 @@ EOF
     'If a canonical worktree is blocked, report the blocker instead of creating another clone.'
 }
 
-# Select one immediate child repository in the current task workspace and open
-# it in tuicr. A supplied range is passed unchanged after validation.
+# Repeatedly select immediate child repositories in the current task workspace
+# and open them in tuicr. A supplied range is passed unchanged after validation.
 review() {
   if (( $# > 1 )); then
     echo "Usage: review [git-revision-range]" >&2
@@ -705,63 +908,9 @@ review() {
   local revision_range="${1:-}"
   local base_revision head_revision base_commit head_commit selected_root
   local repo_dir repo_root repo_name branch changed change_summary label selected selected_repo selected_changed marker
-  local -i index=1
+  local tuicr_status
+  local -i index
   local -a repo_dirs repo_changes labels
-
-  while IFS= read -r -d '' repo_dir; do
-    repo_root=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null) || continue
-    [[ "$repo_root" == "${repo_dir:A}" ]] || continue
-
-    repo_name="${repo_dir:t}"
-    branch=$(git -C "$repo_dir" symbolic-ref --quiet --short HEAD 2>/dev/null) || \
-      branch="detached@$(git -C "$repo_dir" rev-parse --short HEAD 2>/dev/null)"
-    changed=$(git -C "$repo_dir" status --short --untracked-files=all 2>/dev/null | awk 'END { print NR + 0 }')
-    if (( changed == 0 )); then
-      change_summary="clean"
-    else
-      change_summary="$changed changes"
-    fi
-
-    repo_dirs+=("$repo_dir")
-    repo_changes+=("$changed")
-    marker=""
-    [[ -L "$repo_dir" ]] && marker=" legacy-symlink"
-    label=$(printf '%-24s %-12s %-24s%s' "$repo_name" "$change_summary" "$branch" "$marker")
-    labels+=("$label")
-  done < <(find "$workspace" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print0 2>/dev/null)
-
-  if (( ${#repo_dirs[@]} == 0 )); then
-    echo "review: no immediate child Git repositories found in $workspace" >&2
-    return 1
-  fi
-
-  selected=$(printf '%s\n' "${labels[@]}" | fzf \
-    --height=40% --layout=reverse --border \
-    --header='Repository                Changes      Branch') || return 0
-  [[ -n "$selected" ]] || return 0
-
-  while (( index <= ${#labels[@]} )); do
-    if [[ "${labels[index]}" == "$selected" ]]; then
-      selected_repo="${repo_dirs[index]}"
-      selected_changed="${repo_changes[index]}"
-      break
-    fi
-    (( index++ ))
-  done
-
-  [[ -n "$selected_repo" ]] || return 1
-  [[ -d "$selected_repo" ]] || {
-    echo "review: selected repository no longer exists: $selected_repo" >&2
-    return 1
-  }
-  selected_root=$(git -C "$selected_repo" rev-parse --show-toplevel 2>/dev/null) || {
-    echo "review: selected path is no longer a Git repository: $selected_repo" >&2
-    return 1
-  }
-  [[ "${selected_root:A}" == "${selected_repo:A}" ]] || {
-    echo "review: selected path is no longer a repository root: $selected_repo" >&2
-    return 1
-  }
 
   if [[ -n "$revision_range" ]]; then
     if [[ "$revision_range" == *"..."* ]]; then
@@ -781,31 +930,104 @@ review() {
       echo "review: range must contain exactly two non-empty revisions" >&2
       return 1
     fi
-
-    base_commit=$(git -C "$selected_repo" rev-parse --verify "$base_revision^{commit}" 2>/dev/null) || {
-      echo "review: base revision is not a commit: $base_revision" >&2
-      return 1
-    }
-    head_commit=$(git -C "$selected_repo" rev-parse --verify "$head_revision^{commit}" 2>/dev/null) || {
-      echo "review: head revision is not a commit: $head_revision" >&2
-      return 1
-    }
-    if [[ "$base_commit" == "$head_commit" ]]; then
-      echo "review: base and head resolve to the same commit" >&2
-      return 1
-    fi
   fi
 
-  (
-    cd -- "$selected_repo" || exit 1
-    if [[ -n "$revision_range" ]]; then
-      command tuicr -r "$revision_range"
-    elif (( selected_changed > 0 )); then
-      command tuicr -w
-    else
-      command tuicr
+  while true; do
+    repo_dirs=()
+    repo_changes=()
+    labels=()
+    selected_repo=""
+    selected_changed=""
+    index=1
+
+    while IFS= read -r -d '' repo_dir; do
+      repo_root=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null) || continue
+      [[ "$repo_root" == "${repo_dir:A}" ]] || continue
+
+      repo_name="${repo_dir:t}"
+      branch=$(git -C "$repo_dir" symbolic-ref --quiet --short HEAD 2>/dev/null) || \
+        branch="detached@$(git -C "$repo_dir" rev-parse --short HEAD 2>/dev/null)"
+      changed=$(git -C "$repo_dir" status --short --untracked-files=all 2>/dev/null | awk 'END { print NR + 0 }')
+      if (( changed == 0 )); then
+        change_summary="clean"
+      else
+        change_summary="$changed changes"
+      fi
+
+      repo_dirs+=("$repo_dir")
+      repo_changes+=("$changed")
+      marker=""
+      [[ -L "$repo_dir" ]] && marker=" legacy-symlink"
+      label=$(printf '%-24s %-12s %-24s%s' "$repo_name" "$change_summary" "$branch" "$marker")
+      labels+=("$label")
+    done < <(find "$workspace" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print0 2>/dev/null)
+
+    if (( ${#repo_dirs[@]} == 0 )); then
+      echo "review: no immediate child Git repositories found in $workspace" >&2
+      return 1
     fi
-  )
+
+    selected=$(printf '%s\n' "${labels[@]}" | fzf \
+      --height=40% --layout=reverse --border \
+      --header=$'Select repository to review · Esc to exit\nRepository                Changes      Branch') || return 0
+    [[ -n "$selected" ]] || return 0
+
+    while (( index <= ${#labels[@]} )); do
+      if [[ "${labels[index]}" == "$selected" ]]; then
+        selected_repo="${repo_dirs[index]}"
+        selected_changed="${repo_changes[index]}"
+        break
+      fi
+      (( index++ ))
+    done
+
+    [[ -n "$selected_repo" ]] || {
+      echo "review: selected repository could not be resolved" >&2
+      continue
+    }
+    [[ -d "$selected_repo" ]] || {
+      echo "review: selected repository no longer exists: $selected_repo" >&2
+      continue
+    }
+    selected_root=$(git -C "$selected_repo" rev-parse --show-toplevel 2>/dev/null) || {
+      echo "review: selected path is no longer a Git repository: $selected_repo" >&2
+      continue
+    }
+    [[ "${selected_root:A}" == "${selected_repo:A}" ]] || {
+      echo "review: selected path is no longer a repository root: $selected_repo" >&2
+      continue
+    }
+
+    if [[ -n "$revision_range" ]]; then
+      base_commit=$(git -C "$selected_repo" rev-parse --verify "$base_revision^{commit}" 2>/dev/null) || {
+        echo "review: ${selected_repo:t}: base revision is not a commit: $base_revision" >&2
+        continue
+      }
+      head_commit=$(git -C "$selected_repo" rev-parse --verify "$head_revision^{commit}" 2>/dev/null) || {
+        echo "review: ${selected_repo:t}: head revision is not a commit: $head_revision" >&2
+        continue
+      }
+      if [[ "$base_commit" == "$head_commit" ]]; then
+        echo "review: ${selected_repo:t}: base and head resolve to the same commit" >&2
+        continue
+      fi
+    fi
+
+    (
+      cd -- "$selected_repo" || exit 1
+      if [[ -n "$revision_range" ]]; then
+        command tuicr -r "$revision_range"
+      elif (( selected_changed > 0 )); then
+        command tuicr -w
+      else
+        command tuicr
+      fi
+    )
+    tuicr_status=$?
+    if (( tuicr_status != 0 )); then
+      echo "review: tuicr exited with status $tuicr_status for ${selected_repo:t}" >&2
+    fi
+  done
 }
 
 # List/search ~/.agents/skills, e.g. `skills`, `skills agent`, or `skills -d agent`.

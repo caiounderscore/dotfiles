@@ -1,0 +1,55 @@
+# Portable safety policy for Codex Kubernetes MCP servers.
+# The launcher must provide an explicit, single-context kubeconfig and server
+# binary; those machine- and cluster-specific paths do not belong in Git.
+log_level = 1
+log_file = "stderr"
+list_output = "table"
+
+read_only = false
+disable_destructive = false
+validation_enabled = true
+toolsets = ["core"]
+
+# Fail closed when an MCP client cannot display confirmation elicitation.
+confirmation_fallback = "deny"
+
+server_instructions = """
+Use only the explicit kubeconfig passed when this server starts. Never discover
+or switch to another kubeconfig or context. Prefer filtered reads, preserve
+unrelated resources, require explicit user intent before destructive operations,
+and never request or expose credentials or Secret contents.
+"""
+
+[[confirmation_rules]]
+destructive = true
+message = "Confirm this destructive Kubernetes action is explicitly authorized for the configured cluster."
+
+[[denied_resources]]
+group = ""
+version = "v1"
+kind = "Secret"
+
+[[denied_resources]]
+group = ""
+version = "v1"
+kind = "ServiceAccount"
+
+[[denied_resources]]
+group = "rbac.authorization.k8s.io"
+version = "v1"
+kind = "Role"
+
+[[denied_resources]]
+group = "rbac.authorization.k8s.io"
+version = "v1"
+kind = "RoleBinding"
+
+[[denied_resources]]
+group = "rbac.authorization.k8s.io"
+version = "v1"
+kind = "ClusterRole"
+
+[[denied_resources]]
+group = "rbac.authorization.k8s.io"
+version = "v1"
+kind = "ClusterRoleBinding"

@@ -40,7 +40,7 @@ stow --verbose=1 \
   --dir="$REPO_DIR" --target="$HOME" "${BASE_PACKAGES[@]}"
 
 # 5. Inventory/migrate the legacy skill root and language state, then preview
-#    and stow the neutral ai package plus the Claude and Codex adapters.
+#    and stow the neutral ai package plus the Claude, Codex, OpenClaude, and opencode adapters.
 bash "$REPO_DIR/scripts/setup-ai.sh" --apply
 
 cat <<'EOF'

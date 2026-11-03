@@ -8,7 +8,7 @@ elif [ -x /usr/local/bin/brew ]; then
   eval "$(/usr/local/bin/brew shellenv)"
 fi
 
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
 export NVM_DIR="$HOME/.nvm"
 export CLAUDE_CODE_DISABLE_MOUSE_CLICKS=0
 export HOMEBREW_CASK_OPTS="--appdir=$HOME/Applications"

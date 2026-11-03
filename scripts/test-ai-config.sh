@@ -159,6 +159,8 @@ prepare_fixture_repo() {
     "$SOURCE_REPO/ai" \
     "$SOURCE_REPO/claude" \
     "$SOURCE_REPO/codex" \
+    "$SOURCE_REPO/openclaude" \
+    "$SOURCE_REPO/opencode" \
     "$FIXTURE_REPO/"
   cp -p -- "$SETUP_SCRIPT" "$FIXTURE_REPO/scripts/setup-ai.sh"
 
@@ -173,6 +175,7 @@ test_empty_home_idempotency() {
   local home_dir="$TEST_ROOT/homes/empty"
   local physical_home
   local backup_count=0
+  local agent
 
   mkdir -p -- "$home_dir"
   run_setup_apply "$home_dir" "$TEST_ROOT/empty-first.log"
@@ -185,10 +188,54 @@ test_empty_home_idempotency() {
     "$physical_home/.agents/skills" \
     "$(readlink "$physical_home/.claude/skills")" \
     "Claude skills link did not use the physical HOME path"
+  # A folded agents link would let /agents write runtime definitions into Git.
+  [[ -d "$physical_home/.claude/agents" && ! -L "$physical_home/.claude/agents" ]] || \
+    fail "Claude agents directory was folded or not created"
+  for agent in implementer validator verifier; do
+    [[ "$physical_home/.claude/agents/$agent.md" \
+      -ef "$FIXTURE_REPO_PHYSICAL/claude/.claude/agents/$agent.md" ]] || \
+      fail "Claude $agent agent was not linked"
+  done
+  [[ -f "$physical_home/.claude/settings.json" && ! -L "$physical_home/.claude/settings.json" ]] || \
+    fail "Claude settings.json was not seeded as a machine-local file"
+  cmp -s "$FIXTURE_REPO_PHYSICAL/claude/.claude/settings.json" \
+    "$physical_home/.claude/settings.json" || \
+    fail "seeded Claude settings.json differs from the tracked baseline"
+  [[ -L "$physical_home/.agent/skills" ]] || \
+    fail "legacy singular skill root was not linked"
+  assert_eq \
+    "$physical_home/.agents/skills" \
+    "$(readlink "$physical_home/.agent/skills")" \
+    "legacy singular skill root did not use the canonical physical path"
+  [[ "$physical_home/.agents/skills/reload/SKILL.md" \
+    -ef "$FIXTURE_REPO_PHYSICAL/ai/.agents/skills/reload/SKILL.md" ]] || \
+    fail "known shared reload skill did not resolve to its canonical source"
+  [[ "$physical_home/.agents/skills/tuicr-review/SKILL.md" \
+    -ef "$FIXTURE_REPO_PHYSICAL/ai/.agents/skills/tuicr-review/SKILL.md" ]] || \
+    fail "shared tuicr-review skill did not resolve to its canonical source"
+  [[ -L "$physical_home/.codex/skills/tuicr-review" ]] || \
+    fail "Codex tuicr-review adapter was not linked"
+  [[ "$physical_home/.codex/skills/tuicr-review/SKILL.md" \
+    -ef "$FIXTURE_REPO_PHYSICAL/ai/.agents/skills/tuicr-review/SKILL.md" ]] || \
+    fail "Codex tuicr-review adapter did not resolve to its canonical source"
+  [[ -L "$physical_home/.openclaude/CLAUDE.md" ]] || \
+    fail "OpenClaude instructions adapter was not linked"
+  [[ "$physical_home/.openclaude/CLAUDE.md" \
+    -ef "$FIXTURE_REPO_PHYSICAL/openclaude/.openclaude/CLAUDE.md" ]] || \
+    fail "OpenClaude instructions adapter is not the tracked CLAUDE.md adapter"
+  [[ -L "$physical_home/.config/opencode/AGENTS.md" ]] || \
+    fail "opencode instructions adapter was not linked"
+  [[ "$physical_home/.config/opencode/AGENTS.md" \
+    -ef "$FIXTURE_REPO_PHYSICAL/ai/.agents/AGENTS.md" ]] || \
+    fail "opencode instructions adapter is not the canonical AGENTS.md"
   assert_contains \
     "$TEST_ROOT/empty-second.log" \
     "Claude skill root already resolves to $physical_home/.agents/skills" \
     "second apply did not recognize the existing Claude skills link"
+  assert_contains \
+    "$TEST_ROOT/empty-second.log" \
+    "Legacy skill root already resolves to $physical_home/.agents/skills" \
+    "second apply did not recognize the unified legacy skills link"
 
   if [[ -d "$physical_home/.agents/state/backups" ]]; then
     backup_count=$(find "$physical_home/.agents/state/backups" \
@@ -197,11 +244,94 @@ test_empty_home_idempotency() {
   assert_eq 0 "$backup_count" "idempotent empty-home apply created a backup"
 }
 
+test_existing_claude_settings_preserved() {
+  local home_dir="$TEST_ROOT/homes/existing-claude-settings"
+  local config="$home_dir/.claude/settings.json"
+  local original="$TEST_ROOT/claude-settings.original"
+  local physical_home
+
+  mkdir -p -- "$(dirname -- "$config")"
+  printf '%s\n' '{' '  "model": "haiku"' '}' >"$config"
+  cp -p -- "$config" "$original"
+
+  run_setup_apply "$home_dir" "$TEST_ROOT/existing-claude-first.log"
+  run_setup_apply "$home_dir" "$TEST_ROOT/existing-claude-second.log"
+  physical_home=$(cd -- "$home_dir" && pwd -P)
+
+  [[ ! -L "$physical_home/.claude/settings.json" ]] || \
+    fail "existing Claude settings.json was replaced by a link"
+  cmp -s "$original" "$physical_home/.claude/settings.json" || \
+    fail "existing Claude settings.json was changed"
+  [[ "$physical_home/.claude/agents/verifier.md" \
+    -ef "$FIXTURE_REPO_PHYSICAL/claude/.claude/agents/verifier.md" ]] || \
+    fail "Claude agents did not coexist with the existing settings"
+}
+
+test_existing_openclaude_config_preserved() {
+  local home_dir="$TEST_ROOT/homes/existing-openclaude-config"
+  local config="$home_dir/.openclaude/settings.json"
+  local original="$TEST_ROOT/openclaude-settings.original"
+  local physical_home
+
+  mkdir -p -- "$(dirname -- "$config")"
+  printf '%s\n' \
+    '{' \
+    '  "env": {},' \
+    '  "model": "gpt-5.4"' \
+    '}' >"$config"
+  cp -p -- "$config" "$original"
+
+  run_setup_apply "$home_dir" "$TEST_ROOT/existing-openclaude-first.log"
+  run_setup_apply "$home_dir" "$TEST_ROOT/existing-openclaude-second.log"
+  physical_home=$(cd -- "$home_dir" && pwd -P)
+
+  [[ -d "$physical_home/.openclaude" && ! -L "$physical_home/.openclaude" ]] || \
+    fail "existing .openclaude directory was folded or replaced"
+  cmp -s "$original" "$physical_home/.openclaude/settings.json" || \
+    fail "existing OpenClaude settings.json was changed"
+  [[ "$physical_home/.openclaude/CLAUDE.md" \
+    -ef "$FIXTURE_REPO_PHYSICAL/openclaude/.openclaude/CLAUDE.md" ]] || \
+    fail "OpenClaude adapter did not coexist with the existing config"
+}
+
+test_existing_opencode_config_preserved() {
+  local home_dir="$TEST_ROOT/homes/existing-opencode-config"
+  local config="$home_dir/.config/opencode/opencode.jsonc"
+  local original="$TEST_ROOT/opencode.jsonc.original"
+  local physical_home
+
+  mkdir -p -- "$(dirname -- "$config")"
+  # The JSON key is intentionally literal, not a shell variable.
+  # shellcheck disable=SC2016
+  printf '%s\n' \
+    '{' \
+    '  "$schema": "https://opencode.ai/config.json",' \
+    '  // Client-specific settings must remain machine-local.' \
+    '  "share": "disabled"' \
+    '}' >"$config"
+  cp -p -- "$config" "$original"
+
+  run_setup_apply "$home_dir" "$TEST_ROOT/existing-opencode-first.log"
+  run_setup_apply "$home_dir" "$TEST_ROOT/existing-opencode-second.log"
+  physical_home=$(cd -- "$home_dir" && pwd -P)
+
+  [[ -d "$physical_home/.config" && ! -L "$physical_home/.config" ]] || \
+    fail "existing .config directory was folded or replaced"
+  [[ -d "$physical_home/.config/opencode" && ! -L "$physical_home/.config/opencode" ]] || \
+    fail "existing opencode config directory was folded or replaced"
+  cmp -s "$original" "$physical_home/.config/opencode/opencode.jsonc" || \
+    fail "existing opencode.jsonc was changed"
+  [[ "$physical_home/.config/opencode/AGENTS.md" \
+    -ef "$FIXTURE_REPO_PHYSICAL/ai/.agents/AGENTS.md" ]] || \
+    fail "opencode adapter did not coexist with the existing config"
+}
+
 test_singular_skill_copy() {
   local home_dir="$TEST_ROOT/homes/singular-skills"
   local physical_home
   local real_source="$home_dir/.agent/skills/real-skill"
   local linked_source="$TEST_ROOT/external/linked-skill"
+  local legacy_backup
   local real_target
   local linked_target
 
@@ -233,8 +363,14 @@ test_singular_skill_copy() {
     fail "linked skill executable state was not preserved"
   assert_eq SKILL.md "$(readlink "$linked_target/skill-link.md")" \
     "link inside a resolved skill was not preserved"
-  [[ -L "$home_dir/.agent/skills/linked-skill" ]] || \
-    fail "legacy top-level skill symlink was modified"
+  [[ -L "$home_dir/.agent/skills" ]] || \
+    fail "legacy skill root was not unified with the canonical root"
+  [[ "$home_dir/.agent/skills" -ef "$physical_home/.agents/skills" ]] || \
+    fail "legacy skill root does not resolve to the canonical root"
+  legacy_backup=$(find "$physical_home/.agents/state/backups" \
+    -path '*/legacy-agent/skills' -type d -print)
+  [[ -n "$legacy_backup" && -L "$legacy_backup/linked-skill" ]] || \
+    fail "legacy top-level skill symlink was not preserved in the backup"
 }
 
 test_skill_conflicts_with_locale() {
@@ -243,6 +379,7 @@ test_skill_conflicts_with_locale() {
   local plural="$home_dir/.agents/skills"
   local test_locale
   local empty_entry_count
+  local legacy_backup
 
   write_skill "$singular/content-conflict" content-conflict "singular content"
   write_skill "$plural/content-conflict" content-conflict "plural content"
@@ -277,17 +414,20 @@ test_skill_conflicts_with_locale() {
   assert_contains "$TEST_ROOT/skill-conflicts.log" \
     "Claude will use the canonical plural-root version of each conflicting skill" \
     "active-root behavior for conflicting skills was not reported"
-  assert_contains "$singular/content-conflict/SKILL.md" "singular content" \
-    "singular content conflict was overwritten"
+  legacy_backup=$(find "$home_dir/.agents/state/backups" \
+    -path '*/legacy-agent/skills' -type d -print)
+  [[ -n "$legacy_backup" ]] || fail "legacy conflict root was not backed up"
+  assert_contains "$legacy_backup/content-conflict/SKILL.md" "singular content" \
+    "singular content conflict was not preserved in the backup"
   assert_contains "$plural/content-conflict/SKILL.md" "plural content" \
     "plural content conflict was overwritten"
-  [[ -x "$singular/mode-conflict/run.sh" ]] || \
+  [[ -x "$legacy_backup/mode-conflict/run.sh" ]] || \
     fail "singular executable-mode conflict lost its executable state"
   [[ ! -x "$plural/mode-conflict/run.sh" ]] || \
     fail "plural executable-mode conflict gained executable state"
-  [[ -d "$singular/structural-conflict/required-empty" ]] || \
+  [[ -d "$legacy_backup/structural-conflict/required-empty" ]] || \
     fail "singular empty directory was removed from the structural conflict"
-  empty_entry_count=$(find "$singular/structural-conflict/required-empty" \
+  empty_entry_count=$(find "$legacy_backup/structural-conflict/required-empty" \
     -mindepth 1 -print | count_paths)
   assert_eq 0 "$empty_entry_count" \
     "singular required directory no longer remained empty"
@@ -659,6 +799,9 @@ run_test() {
 }
 
 run_test "empty HOME apply is physically idempotent" test_empty_home_idempotency
+run_test "existing Claude settings are preserved" test_existing_claude_settings_preserved
+run_test "existing OpenClaude config is preserved" test_existing_openclaude_config_preserved
+run_test "existing opencode config is preserved" test_existing_opencode_config_preserved
 run_test "singular-only real and linked skills copy safely" test_singular_skill_copy
 run_test "content, mode, and structural conflicts survive locale changes" test_skill_conflicts_with_locale
 run_test "identical English and divergent German logs migrate safely" test_language_log_migration

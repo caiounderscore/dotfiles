@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Purpose: safely migrate shared AI instructions, portable skills, language state,
-# and Claude/Codex adapters into their canonical GNU Stow layout.
+# and the Claude, Codex, OpenClaude, and opencode adapters into their canonical GNU Stow layout.
 # The default mode is read-only; filesystem changes require an explicit --apply.
 set -Eeuo pipefail
 
@@ -12,6 +12,8 @@ readonly CANONICAL_SKILLS="$HOME_DIR/.agents/skills"
 readonly MANAGED_SKILLS="$REPO_DIR/ai/.agents/skills"
 readonly LANGUAGE_STATE="$HOME_DIR/.agents/state/language"
 readonly LANGUAGE_WARMUP_MARKER="$LANGUAGE_STATE/warmup-enabled"
+# Claude rewrites ~/.claude/settings.json at runtime, so it stays machine-local and is only seeded.
+readonly CLAUDE_SETTINGS_IGNORE='\.claude/settings\.json'
 
 apply=false
 backup_dir=""
@@ -152,9 +154,9 @@ inventory_skills() {
 }
 
 preview_stow() {
-  log "GNU Stow simulation for ai, claude, and codex:"
-  stow --simulate --verbose=2 --no-folding \
-    --dir="$REPO_DIR" --target="$HOME_DIR" ai claude codex
+  log "GNU Stow simulation for ai, claude, codex, openclaude, and opencode:"
+  stow --simulate --verbose=2 --no-folding --ignore="$CLAUDE_SETTINGS_IGNORE" \
+    --dir="$REPO_DIR" --target="$HOME_DIR" ai claude codex openclaude opencode
 }
 
 copy_singular_only_skills() {
@@ -496,6 +498,48 @@ point_claude_to_canonical_skills() {
   fi
 }
 
+point_legacy_to_canonical_skills() {
+  local path="$LEGACY_SKILLS"
+  local resolved=""
+  local saved
+
+  if [[ -L "$path" ]]; then
+    resolved=$(symlink_target_path "$path")
+  fi
+
+  if [[ "$resolved" == "$CANONICAL_SKILLS" ]]; then
+    log "Legacy skill root already resolves to $CANONICAL_SKILLS"
+    return 0
+  fi
+
+  if [[ -e "$path" && ! -d "$path" && ! -L "$path" ]]; then
+    warn "$path is not a directory or symlink; refusing to replace it"
+    return 1
+  fi
+
+  if [[ "$apply" == true ]]; then
+    mkdir -p -- "$HOME_DIR/.agent" "$CANONICAL_SKILLS"
+    if [[ -e "$path" || -L "$path" ]]; then
+      ensure_backup_dir
+      saved="$backup_dir/legacy-agent/skills"
+      mkdir -p -- "$(dirname -- "$saved")"
+      mv -- "$path" "$saved"
+      if ! ln -s -- "$CANONICAL_SKILLS" "$path"; then
+        mv -- "$saved" "$path"
+        return 1
+      fi
+      log "Backed up legacy skill root $path -> $saved"
+    else
+      ln -s -- "$CANONICAL_SKILLS" "$path"
+    fi
+    log "Linked $path -> $CANONICAL_SKILLS"
+  elif [[ -e "$path" || -L "$path" ]]; then
+    log "Would back up the legacy skill root and link $path -> $CANONICAL_SKILLS"
+  else
+    log "Would link $path -> $CANONICAL_SKILLS"
+  fi
+}
+
 retire_managed_symlink() {
   local path="$1"
   local managed="$2"
@@ -573,6 +617,9 @@ refuse_folded_roots() {
   refuse_folded_root "$HOME_DIR/.agents" "$REPO_DIR/ai/.agents" "shared AI"
   refuse_folded_root "$HOME_DIR/.claude" "$REPO_DIR/claude/.claude" "Claude"
   refuse_folded_root "$HOME_DIR/.codex" "$REPO_DIR/codex/.codex" "Codex"
+  refuse_folded_root "$HOME_DIR/.openclaude" "$REPO_DIR/openclaude/.openclaude" "OpenClaude"
+  refuse_folded_root "$HOME_DIR/.config" "$REPO_DIR/opencode/.config" "opencode"
+  refuse_folded_root "$HOME_DIR/.config/opencode" "$REPO_DIR/opencode/.config/opencode" "opencode"
 }
 
 validate_stow_package_sources() {
@@ -582,7 +629,7 @@ validate_stow_package_sources() {
   local relative
   local invalid=false
 
-  for package in ai claude codex; do
+  for package in ai claude codex openclaude opencode; do
     root="$REPO_DIR/$package"
     while IFS= read -r entry; do
       relative="${entry#"$root/"}"
@@ -592,10 +639,16 @@ validate_stow_package_sources() {
             continue
           fi
           ;;
-        claude:.claude|claude:.claude/CLAUDE.md|claude:.claude/settings.json|claude:.claude/hooks|claude:.claude/hooks/lang-warmup.sh)
+        claude:.claude|claude:.claude/CLAUDE.md|claude:.claude/settings.json|claude:.claude/hooks|claude:.claude/hooks/lang-warmup.sh|claude:.claude/agents|claude:.claude/agents/*.md)
           continue
           ;;
-        codex:.codex|codex:.codex/AGENTS.md|codex:.codex/hooks.json|codex:.codex/hooks|codex:.codex/hooks/lang-warmup.sh|codex:.codex/hooks/turn-complete-sound.sh)
+        codex:.codex|codex:.codex/AGENTS.md|codex:.codex/hooks.json|codex:.codex/hooks|codex:.codex/hooks/lang-warmup.sh|codex:.codex/hooks/turn-complete-sound.sh|codex:.codex/mcp-profiles|codex:.codex/mcp-profiles/kubernetes-safe.toml|codex:.codex/skills|codex:.codex/skills/tuicr-review)
+          continue
+          ;;
+        openclaude:.openclaude|openclaude:.openclaude/CLAUDE.md)
+          continue
+          ;;
+        opencode:.config|opencode:.config/opencode|opencode:.config/opencode/AGENTS.md)
           continue
           ;;
       esac
@@ -611,9 +664,22 @@ validate_stow_package_sources() {
 }
 
 apply_stow() {
-  log "Applying ai, claude, and codex Stow packages"
-  stow --verbose=1 --no-folding \
-    --dir="$REPO_DIR" --target="$HOME_DIR" ai claude codex
+  log "Applying ai, claude, codex, openclaude, and opencode Stow packages"
+  stow --verbose=1 --no-folding --ignore="$CLAUDE_SETTINGS_IGNORE" \
+    --dir="$REPO_DIR" --target="$HOME_DIR" ai claude codex openclaude opencode
+}
+
+seed_claude_settings() {
+  local target="$HOME_DIR/.claude/settings.json"
+
+  [[ -e "$target" || -L "$target" ]] && return 0
+  if [[ "$apply" == true ]]; then
+    mkdir -p -- "$HOME_DIR/.claude"
+    cp -p -- "$REPO_DIR/claude/.claude/settings.json" "$target"
+    log "Seeded machine-local $target from the tracked baseline"
+  else
+    log "Would seed machine-local $target from the tracked baseline"
+  fi
 }
 
 refuse_folded_roots
@@ -621,11 +687,13 @@ validate_stow_package_sources
 preview_stow
 inventory_skills
 copy_singular_only_skills
+point_legacy_to_canonical_skills
 migrate_language_state
 migrate_language_warmup_preference
 point_claude_to_canonical_skills
 retire_obsolete_claude_commands
 retire_obsolete_claude_local_example
+seed_claude_settings
 
 if [[ "$apply" == true ]]; then
   apply_stow

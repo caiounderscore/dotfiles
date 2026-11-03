@@ -11,7 +11,11 @@ dotfiles/
 │   ├── AGENTS.md                 # canonical personal instructions
 │   └── skills/                   # user-owned portable skills only
 ├── claude/.claude/               # Claude settings and thin adapters
+│   └── agents/                   # Sonnet implementer/validator, Haiku verifier subagents
 ├── codex/.codex/                 # Codex instructions and hook adapters
+│   └── mcp-profiles/             # Portable MCP safety policy; no cluster paths or credentials
+├── openclaude/.openclaude/       # OpenClaude instructions adapter and tracked defaults
+├── opencode/.config/opencode/    # OpenCode instructions adapter
 ├── tuicr/.config/tuicr/          # shared local-review configuration
 ├── zsh/                          # .zshrc, .aliases, .exports
 ├── git/                          # .gitconfig and work example
@@ -51,24 +55,33 @@ skills, so it is useful for partial integrity checks—not full restoration.
 
 ### Client adapters and capability differences
 
-| Capability | Codex | Claude Code |
-|---|---|---|
-| Global instructions | `~/.codex/AGENTS.md` adapter | `~/.claude/CLAUDE.md` adapter |
-| Personal skills | Reads `~/.agents/skills` directly | `~/.claude/skills` points to `~/.agents/skills` |
-| Session warm-up | Tracked `~/.codex/hooks.json`; marker-gated; review hook trust | User hook in `~/.claude/settings.json`; marker-gated |
-| Model/UI/permissions | Existing `~/.codex/config.toml`, unmanaged | Tracked user settings; project-local overrides stay per repository |
-| Managed skills | `~/.codex/skills/.system`, never touched | Client/plugin-managed locations remain separate |
+| Capability | Codex | Claude Code | OpenClaude | OpenCode |
+|---|---|---|---|---|
+| Global instructions | `~/.codex/AGENTS.md` adapter | `~/.claude/CLAUDE.md` adapter | `~/.openclaude/CLAUDE.md` adapter | `~/.config/opencode/AGENTS.md` adapter |
+| Personal skills | Reads `~/.agents/skills` directly | `~/.claude/skills` points to `~/.agents/skills` | OpenClaude-managed skills stay separate | Reads `~/.agents/skills` directly |
+| Session warm-up | Tracked `~/.codex/hooks.json`; marker-gated; review hook trust | User hook in `~/.claude/settings.json`; marker-gated | No tracked startup hook; rely on `CLAUDE.md` plus local user settings | No startup shell hook; invoke `language-warmup` manually |
+| Model/UI/permissions | Existing `~/.codex/config.toml`, unmanaged | Machine-local `~/.claude/settings.json`, seeded once from the tracked baseline because Claude rewrites it at runtime; project-local overrides stay per repository | `~/.openclaude/settings.json`, unmanaged | `~/.config/opencode/opencode.json` or `opencode.jsonc`, unmanaged |
+| Agent roles | Not configured | Opus main session orchestrates; `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` for untyped subagents and workflow agents; tracked `~/.claude/agents/` defines `implementer`, `validator` (Sonnet), and `verifier` (Haiku) | Not configured | Not configured |
+| Kubernetes MCP | Tracked safety profile + global registration helper; cluster paths stay local | Configure separately for Claude if needed | Configure separately in local OpenClaude settings if needed | Configure separately in `opencode.json` or `opencode.jsonc` if needed |
+| Managed skills | `~/.codex/skills/.system`, never touched | Client/plugin-managed locations remain separate | `openclaude skills` inventory remains client-managed | No client-managed skill root to preserve |
 
-Installed Codex 0.144.1 and Claude Code 2.1.206 both support `SessionStart` with
+Installed Codex 0.152.1 and Claude Code 2.1.206 both support `SessionStart` with
 `startup`, `resume`, `clear`, and `compact`. The shared hook script stays silent unless the
 per-machine marker exists, and also stays silent for resume and compact. Both adapters inject
-only the neutral `language-warmup` skill. Codex requires reviewing a new or changed hook;
-never bypass that trust review.
+only the neutral `language-warmup` skill. The injection includes its canonical
+`~/.agents/skills/language-warmup/SKILL.md` path so an agent can load it even when a bounded
+skill catalog omits it; provider lookup and the sandbox-safe fallback remain secondary paths.
+Codex requires reviewing a new or changed hook; never bypass that trust review.
 
-Claude officially supports a `CLAUDE.md` symlink to `AGENTS.md` and symlinked personal skill
-entries. This setup also uses a containing `~/.claude/skills` link; its filesystem traversal
-works on this machine and is rechecked after migration, although the documentation only makes
-an explicit guarantee for individual skill-entry symlinks.
+OpenClaude uses its own `~/.openclaude` config tree and supports `~/.openclaude/CLAUDE.md`,
+so this repository tracks only that instruction adapter there. Keep OpenClaude provider
+profiles, `settings.json`, installed skills, histories, sessions, and other runtime state
+machine-local. The verified portable mapping from your older Claude setup is:
+
+- track shared instructions through `~/.openclaude/CLAUDE.md`;
+- keep local `~/.openclaude/settings.json` for `model`, `effort`, `permissionMode`, and provider choices;
+- keep startup sounds, stop sounds, and other hook-like behavior in local OpenClaude plugins or workflows if you add them later.
+
 
 Official discovery references: [Codex AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md),
 [Codex skills](https://learn.chatgpt.com/docs/build-skills),
@@ -76,7 +89,10 @@ Official discovery references: [Codex AGENTS.md](https://learn.chatgpt.com/docs/
 [Claude instructions](https://code.claude.com/docs/en/memory), and
 [Claude skills](https://code.claude.com/docs/en/skills),
 [Claude settings](https://code.claude.com/docs/en/settings), and
-[Claude hooks](https://code.claude.com/docs/en/hooks).
+[Claude hooks](https://code.claude.com/docs/en/hooks), plus
+[opencode rules](https://opencode.ai/docs/rules/),
+[opencode skills](https://opencode.ai/docs/skills/), and
+[opencode plugins](https://opencode.ai/docs/plugins/).
 
 ### Safe migration from `~/.agent` to `~/.agents`
 
@@ -91,7 +107,7 @@ directories.
 
 The preview:
 
-- fails before migration if `~/.agents`, `~/.claude`, or `~/.codex` is a folded Stow link into
+- fails before migration if `~/.agents`, `~/.claude`, `~/.codex`, or `~/.openclaude` is a folded Stow link into
   this repository, preventing runtime writes from landing in Git;
 - rejects source-package entries outside the documented shared files and client adapters, so
   Git-ignored runtime state cannot be linked by Stow;
@@ -101,7 +117,8 @@ The preview:
   top-level skill link into a real directory while preserving links inside the skill;
 - excludes repository-managed language skills from generic copying;
 - preserves same-name/different-content conflicts in both roots;
-- simulates Stow for `ai`, `claude`, and `codex`;
+- simulates Stow for `ai`, `claude`, `codex`, `openclaude`, and `opencode`, skipping
+  `claude/.claude/settings.json`, which it copies only when `~/.claude/settings.json` is missing;
 - shows language-log migration, per-machine warm-up preference migration, backups, and link
   replacements.
 
@@ -161,14 +178,30 @@ copyable update. They never weaken a client's sandbox globally.
 - `k` aliases `kubectl`.
 - `klocal` and `kdev` switch the default kubeconfig to their named contexts, then optionally
   run a command.
-- `ksandbox` points `KUBECONFIG` at a separate sandbox file for the session.
-- `kprod` always passes an explicit production context and asks for `yes` before mutating verbs.
+- `ksandbox` points `KUBECONFIG` at the generated sandbox kubeconfig
+  (`~/.bladecp-sandbox/talos/generated/kubeconfig`) for the session, and refuses when that file's
+  current context is not `admin@bcp-sandbox-control-plane` (`K8S_SANDBOX_KUBECONFIG` and
+  `K8S_SANDBOX_CONTEXT` override both).
+- `kprod-auth` derives a temporary BladeCP production admin kubeconfig through the private
+  runner; `kprod` scopes that file to one command, classifies operations fail-closed, and
+  checks the Tailscale-routed API first; `kprod-clean` removes only that temporary credential.
+  The API host and TLS name come from `K8S_PROD_API_HOST` and `K8S_PROD_TLS_SERVER_NAME` in
+  untracked `~/.zshrc.local`; both commands refuse to run without them.
+  Mutating `kprod` commands require typing `yes`.
 - `reload` restarts the current shell with `exec zsh -l`.
+- `codex` enables its native turn-scoped macOS idle-sleep inhibitor; the other AI clients keep
+  their default sleep behavior.
 - `docker` and `docker-compose` map to `nerdctl` and `nerdctl compose`.
 - `task-workspace --from <source-branch> [--goal <objective>] <workspace-name>
   <repository...>` creates or reuses canonical Git worktrees and generates the task contract.
 - `skills` lists every skill in `~/.agents/skills`; `skills <term>` filters names and
   descriptions; `skills -d [term]` includes descriptions. Override the root with `SKILLS_DIR`.
+
+The installed Codex feature `prevent_idle_sleep` prevents idle system sleep only while a turn
+is actively running. An open Codex client waiting at the prompt does not hold the assertion, and
+the display may still sleep. Start a fresh shell after installing or relinking the package;
+direct invocations such as `command codex` bypass the wrapper. The feature is experimental in
+Codex 0.152.1, so revalidate it after Codex upgrades.
 
 ### Managed task workspaces
 
@@ -241,14 +274,47 @@ cd /path/to/dotfiles
 `bootstrap.sh` derives its own repository path, installs the Homebrew and shell prerequisites
 (including Go and `gopls` for the enabled Claude plugin), simulates Stow before applying it,
 stows the base packages, then runs the
-AI migration and stows `ai`, `claude`, and `codex`. It does not install, authenticate, or
-choose a default AI vendor. If neither client is installed, its configuration remains ready
-for later use.
+AI migration and stows `ai`, `claude`, `codex`, `openclaude`, and `opencode`. It does not install,
+authenticate, or choose a default AI vendor. If a client is not installed, its configuration
+remains ready for later use.
 
 On an existing machine, run `bash scripts/setup-ai.sh` separately before bootstrap so the
 live AI impact can be reviewed in isolation.
 
 ## Optional client setup
+
+### Codex Kubernetes MCP
+
+The tracked profile at `~/.codex/mcp-profiles/kubernetes-safe.toml` enables only the core
+Kubernetes tools, denies Secrets, ServiceAccounts, and RBAC resources, validates writes, and
+fails closed when a client cannot display confirmation for a destructive operation. The
+server binary, kubeconfig, context, and resulting `~/.codex/config.toml` entry remain
+machine-local.
+
+Registering the server globally makes it available to every Codex workspace on that machine;
+no project `.codex/config.toml` is needed. Preview first:
+
+```sh
+bash scripts/setup-codex-kubernetes-mcp.sh \
+  --name ksandbox-kubernetes \
+  --server ~/.local/bin/kubernetes-mcp-server-v0.0.64 \
+  --kubeconfig ~/.kube/config-remote
+```
+
+The helper prints the one allowed context, API endpoint, version-pinned executable, profile,
+and exact `codex mcp add` command. After review, repeat with `--apply`, then restart Codex:
+
+```sh
+bash scripts/setup-codex-kubernetes-mcp.sh \
+  --name ksandbox-kubernetes \
+  --server ~/.local/bin/kubernetes-mcp-server-v0.0.64 \
+  --kubeconfig ~/.kube/config-remote \
+  --apply
+```
+
+The helper rejects multi-context kubeconfigs and refuses to replace an existing MCP entry.
+Use a separate, least-privilege kubeconfig and a distinct MCP name for every cluster; never
+reuse a sandbox cluster-admin kubeconfig for production.
 
 - Enable the bilingual startup warm-up on a machine by creating its untracked marker:
 
@@ -270,8 +336,9 @@ live AI impact can be reviewed in isolation.
 
 ```sh
 git diff --check
-bash -n bootstrap.sh scripts/setup-ai.sh
+bash -n bootstrap.sh scripts/setup-ai.sh scripts/setup-codex-kubernetes-mcp.sh
 zsh -n zsh/.aliases
+zsh scripts/test-ai-session.zsh
 jq empty claude/.claude/settings.json codex/.codex/hooks.json
 bash scripts/test-task-workspace.sh
 bash scripts/test-ai-config.sh
@@ -288,6 +355,8 @@ After applying, verify:
 
 ```sh
 readlink ~/.claude/skills
+readlink ~/.openclaude/CLAUDE.md
+readlink ~/.config/opencode/AGENTS.md
 if command -v codex >/dev/null; then test -f ~/.codex/skills/.system/.codex-system-skills.marker; fi
 skills
 skills agent

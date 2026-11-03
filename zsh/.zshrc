@@ -1,6 +1,10 @@
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
+# macOS terminal shells default to 256 file descriptors, which is too low for
+# tools that discover the shared personal and plugin skill inventories.
+ulimit -n 4096 2>/dev/null || true
+
 # Path to your Oh My Zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
 

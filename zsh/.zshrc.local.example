@@ -6,3 +6,7 @@
 # export HTTPS_PROXY=$HTTP_PROXY
 # export KUBECONFIG=$HOME/.kube/work-config
 # export PATH="$HOME/company-tools/bin:$PATH"
+#
+# Required by kprod/kprodtalos; keep the real production endpoint out of the repo.
+# K8S_PROD_API_HOST=10.0.0.1
+# K8S_PROD_TLS_SERVER_NAME=k8s-api.prod.example.internal

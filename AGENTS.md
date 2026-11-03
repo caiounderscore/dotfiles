@@ -4,7 +4,7 @@
 
 - Each top-level tool directory is a GNU Stow package whose contents mirror `$HOME`.
 - `ai/` owns shared personal instructions and portable user-authored skills.
-- `claude/` and `codex/` are thin client adapters; keep model, UI, hook, permission, and sandbox settings client-specific.
+- `claude/`, `codex/`, `openclaude/`, and `opencode/` are thin client adapters; keep model, UI, hook, permission, and sandbox settings client-specific.
 - Runtime state belongs outside Git under client directories or `~/.agents/state/`.
 
 ## Scope
@@ -17,7 +17,7 @@
 
 ```sh
 git diff --check
-bash -n bootstrap.sh scripts/setup-ai.sh
+bash -n bootstrap.sh scripts/setup-ai.sh scripts/setup-codex-kubernetes-mcp.sh
 zsh -n zsh/.aliases
 jq empty claude/.claude/settings.json codex/.codex/hooks.json
 bash scripts/test-task-workspace.sh
