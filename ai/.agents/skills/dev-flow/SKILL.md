@@ -30,6 +30,8 @@ are the contract between them.
 - Ask of every requirement whether it needs to exist, and list what was cut under the spec's Out of Scope.
 - Before `/to-spec`, when the feature crosses components or moves money, spawn the `platform_lens`,
   `security_lens`, and `reliability_lens` agents on the draft and grill me only on their open questions.
+- After I approve the tickets, move planning drafts outside `.scratch/` (plans, spec drafts, ticket drafts) into
+  `.scratch/<feature>/drafts/`, so the spec and tickets are the only planning files left in the workspace.
 - Give each ticket a `Persona:` line (`backend-go`, `platform-engineer`, `devops`, or `implementer`) and a
   `Risk: high` line when it moves money or touches concurrency, data migrations, or auth.
 - Plan at `xhigh` effort; use `ultra` only to fan out parallel research.
@@ -37,6 +39,8 @@ are the contract between them.
 ## Building in Claude Code
 
 - Start with `/implement-spec .scratch/<feature>/spec.md`, in a fresh session.
+- The orchestrator reads only the spec, the tickets, and the `AGENTS.md` or `CLAUDE.md` files. Drafts, research
+  notes, and code exploration go to an `Explore` subagent that returns pointers.
 - When a ticket has no `Persona:` line, choose one from the code it touches, write it into the ticket, and say so in
   the report; add `Risk: high` the same way when the ticket meets that rule.
 - Single-session work stays in Claude Code: `/grill-with-docs`, then `/implement`. If it outgrows the session, run

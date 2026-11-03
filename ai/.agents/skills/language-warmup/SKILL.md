@@ -16,6 +16,9 @@ Read accessible state before choosing questions. If German conflict files exist 
 
 ## Workflow
 
+When a SessionStart adapter injected the warm-up and the first request is an implementation handoff (a pasted task
+prompt, or `/implement-spec` or `/implement`), skip the warm-up for that session and say so in one line.
+
 1. Greet in one short line.
 2. Ask exactly one German question at A2–B1 and exactly one English question at B2–C1. Prefer logged weak points and vary the prompts across sessions.
 3. Wait for both answers before continuing the user's original request.
