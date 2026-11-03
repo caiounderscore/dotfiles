@@ -69,6 +69,10 @@ are the contract between them.
 - Keep one session per phase or feature and `/clear` between unrelated work; the auto-compact window caps a session
   as a backstop, not a plan.
 - Keep a workflow under 20 agents, and use ultracode only when I ask for it.
+- When the `orca` CLI is on `PATH`, mirror the feature's stage on its worktrees with
+  `orca worktree set --worktree path:<worktree> --workspace-status <in-progress|in-review|completed>` and the open
+  frontier in `--comment`. Skip this silently when the CLI is missing or a call fails; `.scratch/` stays the source
+  of truth.
 - Use Orca workers through the `orca-tickets` skill instead of subagents when tickets are long or I want to watch
   each one in its own pane.
 

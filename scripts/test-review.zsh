@@ -10,7 +10,7 @@ trap 'rm -rf -- "$TEST_ROOT"' EXIT
 
 # Resolved from this script's physical repository path.
 # shellcheck disable=SC1091
-source "$REPO_DIR/zsh/.aliases"
+source "$REPO_DIR/zsh/.task-workspace.zsh"
 
 fail() {
   print -u2 -- "FAIL: $*"

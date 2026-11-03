@@ -207,6 +207,11 @@ copyable update. They never weaken a client's sandbox globally.
 - `docker` and `docker-compose` map to `nerdctl` and `nerdctl compose`.
 - `task-workspace --from <source-branch> [--goal <objective>] <workspace-name>
   <repository...>` creates or reuses canonical Git worktrees and generates the task contract.
+  It lives in `zsh/.task-workspace.zsh` with `workspaces`, which reports each workspace's
+  repositories as clean, dirty, or unpushed, and `task-workspace-archive <name>`, which refuses
+  dirty or unpushed worktrees, moves ignored files such as `.scratch` and the root files to
+  `~/workspaces/.archive/`, and removes the worktrees while keeping their branches. When the Orca
+  CLI is on `PATH`, `task-workspace` also makes the worktrees visible in Orca; nothing requires it.
 - `skills` lists every skill in `~/.agents/skills`; `skills <term>` filters names and
   descriptions; `skills -d [term]` includes descriptions. Override the root with `SKILLS_DIR`.
 
@@ -350,7 +355,7 @@ reuse a sandbox cluster-admin kubeconfig for production.
 ```sh
 git diff --check
 bash -n bootstrap.sh scripts/setup-ai.sh scripts/setup-codex-kubernetes-mcp.sh
-zsh -n zsh/.aliases
+zsh -n zsh/.aliases zsh/.task-workspace.zsh
 zsh scripts/test-ai-session.zsh
 jq empty claude/.claude/settings.json codex/.codex/hooks.json
 bash scripts/test-task-workspace.sh

@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly SCRIPT_DIR
 SOURCE_REPO="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 readonly SOURCE_REPO
-readonly ALIASES_FILE="$SOURCE_REPO/zsh/.aliases"
+readonly ALIASES_FILE="$SOURCE_REPO/zsh/.task-workspace.zsh"
 
 for command_name in awk find git jq zsh; do
   command -v "$command_name" >/dev/null 2>&1 || {
@@ -288,6 +288,57 @@ test_external_branch_checkout_fails_without_symlink_or_clone() {
   assert_absent "$workspace/repo-branch-new" "replacement -new repository was created"
 }
 
+run_archive() {
+  HOME="$TEST_HOME" WORKSPACE_ARCHIVE_DIR="$1" zsh -f -c '
+    source "$1"
+    task-workspace-archive "$2"
+  ' task-workspace-test "$ALIASES_FILE" "$2"
+}
+
+test_archive_keeps_ignored_files_and_refuses_unsafe_state() {
+  local case_root="$TEST_ROOT/archive"
+  local repository="$case_root/projects/repo-archive"
+  local workspace="$case_root/workspaces/feat-archive"
+  local canonical="$workspace/repo-archive"
+  local archive_root="$case_root/archive"
+  local log_file="$case_root/archive.log"
+  local archived
+
+  create_repository "$repository"
+  run_successfully "$case_root/task-workspace.log" \
+    --from main --workspace "$workspace" feat-archive "$repository"
+
+  git -C "$canonical" commit -q --allow-empty -m "local only"
+  run_archive "$archive_root" "$workspace" >"$log_file" 2>&1 &&
+    fail "archive accepted commits that no remote branch contains"
+  assert_contains "$log_file" "no remote branch contains" "unpushed refusal was not reported"
+
+  git -C "$canonical" update-ref refs/remotes/origin/feat-archive HEAD
+  printf 'draft\n' >"$canonical/untracked.txt"
+  run_archive "$archive_root" "$workspace" >"$log_file" 2>&1 &&
+    fail "archive accepted a dirty worktree"
+  [[ -f "$canonical/untracked.txt" ]] || fail "refused archive changed the worktree"
+  rm -- "$canonical/untracked.txt"
+
+  mkdir -p -- "$canonical/.scratch/feature"
+  printf '*\n' >"$canonical/.scratch/.gitignore"
+  printf 'spec\n' >"$canonical/.scratch/feature/spec.md"
+  printf 'plan\n' >"$workspace/PLAN.md"
+  if ! run_archive "$archive_root" "$workspace" >"$log_file" 2>&1; then
+    dump_log "$log_file"
+    fail "archive of a clean, pushed workspace failed"
+  fi
+
+  assert_absent "$workspace" "workspace root was not archived"
+  archived=$(find "$archive_root" -mindepth 1 -maxdepth 1 -type d -name 'feat-archive-*')
+  [[ -f "$archived/repo-archive/.scratch/feature/spec.md" ]] || fail "ignored .scratch tracker was lost"
+  [[ -f "$archived/PLAN.md" ]] || fail "workspace root file was lost"
+  [[ -f "$archived/.task-workspace.json" ]] || fail "workspace manifest was lost"
+  assert_eq "1" "$(count_worktrees "$repository")" "archived worktree was not removed"
+  git -C "$repository" rev-parse -q --verify refs/heads/feat-archive >/dev/null ||
+    fail "archive deleted the task branch"
+}
+
 run_test() {
   local description="$1"
   local test_function="$2"
@@ -313,5 +364,8 @@ run_test \
 run_test \
   "external branch checkout fails without a symlink or replacement clone" \
   test_external_branch_checkout_fails_without_symlink_or_clone
+run_test \
+  "archive keeps ignored files and refuses dirty or unpushed worktrees" \
+  test_archive_keeps_ignored_files_and_refuses_unsafe_state
 
 printf '1..%s\n' "$TEST_NUMBER"

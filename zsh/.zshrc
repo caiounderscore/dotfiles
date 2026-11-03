@@ -373,6 +373,7 @@ nvm() {
 }
 
 [ -f "$HOME/.aliases" ] && source "$HOME/.aliases"
+[ -f "$HOME/.task-workspace.zsh" ] && source "$HOME/.task-workspace.zsh"
 
 # Per-machine overrides (proxy, corp PATH, work KUBECONFIG, etc.). Untracked —
 # sourced last so it wins. See .zshrc.local.example.
