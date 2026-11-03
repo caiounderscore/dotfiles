@@ -77,6 +77,7 @@
 
 - When a repository has no `## Agent skills` config, the issue tracker for `to-spec`, `to-tickets`, `triage`, `wayfinder`, and `implement-spec` is `~/.agents/skills/orca-tickets/issue-tracker.md`, mirrored in Orca by the `orca-tickets` skill. Use Jira through Orca only when I ask.
 - Codex plans and Claude Code builds; the `dev-flow` skill defines which harness, skill, and model own each phase.
+- When publishing tickets, give each one the `Persona:` and `Risk:` lines the `dev-flow` skill defines.
 
 ## ADRs
 

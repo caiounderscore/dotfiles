@@ -37,6 +37,8 @@ are the contract between them.
 ## Building in Claude Code
 
 - Start with `/implement-spec .scratch/<feature>/spec.md`, in a fresh session.
+- When a ticket has no `Persona:` line, choose one from the code it touches, write it into the ticket, and say so in
+  the report; add `Risk: high` the same way when the ticket meets that rule.
 - Single-session work stays in Claude Code: `/grill-with-docs`, then `/implement`. If it outgrows the session, run
   `/to-spec` and `/to-tickets` there while the grilling is still in context, then continue in fresh sessions.
 - Hard bugs go to `/diagnosing-bugs`; pipeline failures go to the `devops` persona.
