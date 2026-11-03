@@ -345,10 +345,19 @@ add-zsh-hook precmd _network_update
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 [ -f "$HOME/.exports" ] && source "$HOME/.exports"
 
-# Lazy-load nvm: sourcing nvm.sh eagerly adds ~800ms to every shell startup.
-# These stubs load it on first real use, then hand off to the real command.
-_nvm_lazy_load() {
-  unset -f nvm node npm npx corepack
+# Sourcing nvm.sh eagerly adds ~800ms to every shell startup, so put the default
+# Node on PATH directly and load nvm itself only on first use. Keep this free of
+# helper functions: agent shell snapshots drop functions whose names start with "_".
+if [ -d "$NVM_DIR/versions/node" ]; then
+  nvm_default="$(cat "$NVM_DIR/alias/default" 2>/dev/null)"
+  # An alias such as "22.21" picks the newest matching install; "lts/*" or none picks the newest.
+  nvm_default="$(ls -d "$NVM_DIR/versions/node/v${nvm_default#v}"* 2>/dev/null | sort -V | tail -1)"
+  [ -n "$nvm_default" ] || nvm_default="$(ls -d "$NVM_DIR"/versions/node/v* 2>/dev/null | sort -V | tail -1)"
+  [ -n "$nvm_default" ] && export PATH="$nvm_default/bin:$PATH"
+  unset nvm_default
+fi
+nvm() {
+  unset -f nvm
   mkdir -p "$NVM_DIR"
   # nvm.sh lives in $NVM_DIR with the official installer, but under the Homebrew
   # prefix when installed via `brew install nvm` (which is what the Brewfile
@@ -360,12 +369,8 @@ _nvm_lazy_load() {
   for d in "$NVM_DIR/bash_completion" /opt/homebrew/opt/nvm/etc/bash_completion.d/nvm /usr/local/opt/nvm/etc/bash_completion.d/nvm; do
     [ -s "$d" ] && { \. "$d"; break; }
   done
+  nvm "$@"
 }
-nvm() { _nvm_lazy_load; nvm "$@"; }
-node() { _nvm_lazy_load; node "$@"; }
-npm() { _nvm_lazy_load; npm "$@"; }
-npx() { _nvm_lazy_load; npx "$@"; }
-corepack() { _nvm_lazy_load; corepack "$@"; }
 
 [ -f "$HOME/.aliases" ] && source "$HOME/.aliases"
 
