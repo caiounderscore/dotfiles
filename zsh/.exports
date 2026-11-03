@@ -12,3 +12,16 @@ export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
 export NVM_DIR="$HOME/.nvm"
 export CLAUDE_CODE_DISABLE_MOUSE_CLICKS=0
 export HOMEBREW_CASK_OPTS="--appdir=$HOME/Applications"
+
+# Orca ships its CLI inside the app bundle; expose it when the app is installed so agents
+# and task-workspace can manage Orca worktrees and tasks. Without Orca nothing changes.
+for orca_app in "$HOME/Applications/Orca.app" /Applications/Orca.app; do
+  if [ -x "$orca_app/Contents/Resources/bin/orca" ]; then
+    case ":$PATH:" in
+      *":$orca_app/Contents/Resources/bin:"*) ;;
+      *) export PATH="$PATH:$orca_app/Contents/Resources/bin" ;;
+    esac
+    break
+  fi
+done
+unset orca_app
