@@ -3,6 +3,11 @@ set -euo pipefail
 
 readonly payload="${1:-}"
 
+# Orca shows its own turn notifications, so stay silent inside its panes.
+if [ -n "${ORCA_PANE_KEY-}${ORCA_AGENT_PANE-}" ]; then
+  exit 0
+fi
+
 # Codex currently invokes `notify` only for agent-turn-complete, but keep the
 # filter explicit so future notification types do not unexpectedly make noise.
 if [ -z "$payload" ] || ! jq -e '.type == "agent-turn-complete"' \

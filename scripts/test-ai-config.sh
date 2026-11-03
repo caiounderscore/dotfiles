@@ -201,6 +201,11 @@ test_empty_home_idempotency() {
   cmp -s "$FIXTURE_REPO_PHYSICAL/claude/.claude/settings.json" \
     "$physical_home/.claude/settings.json" || \
     fail "seeded Claude settings.json differs from the tracked baseline"
+  [[ -f "$physical_home/.codex/hooks.json" && ! -L "$physical_home/.codex/hooks.json" ]] || \
+    fail "Codex hooks.json was not seeded as a machine-local file"
+  cmp -s "$FIXTURE_REPO_PHYSICAL/codex/.codex/hooks.json" \
+    "$physical_home/.codex/hooks.json" || \
+    fail "seeded Codex hooks.json differs from the tracked baseline"
   [[ -L "$physical_home/.agent/skills" ]] || \
     fail "legacy singular skill root was not linked"
   assert_eq \
@@ -248,11 +253,15 @@ test_existing_claude_settings_preserved() {
   local home_dir="$TEST_ROOT/homes/existing-claude-settings"
   local config="$home_dir/.claude/settings.json"
   local original="$TEST_ROOT/claude-settings.original"
+  local hooks="$home_dir/.codex/hooks.json"
+  local hooks_original="$TEST_ROOT/codex-hooks.original"
   local physical_home
 
-  mkdir -p -- "$(dirname -- "$config")"
+  mkdir -p -- "$(dirname -- "$config")" "$(dirname -- "$hooks")"
   printf '%s\n' '{' '  "model": "haiku"' '}' >"$config"
+  printf '%s\n' '{' '  "hooks": {}' '}' >"$hooks"
   cp -p -- "$config" "$original"
+  cp -p -- "$hooks" "$hooks_original"
 
   run_setup_apply "$home_dir" "$TEST_ROOT/existing-claude-first.log"
   run_setup_apply "$home_dir" "$TEST_ROOT/existing-claude-second.log"
@@ -262,9 +271,40 @@ test_existing_claude_settings_preserved() {
     fail "existing Claude settings.json was replaced by a link"
   cmp -s "$original" "$physical_home/.claude/settings.json" || \
     fail "existing Claude settings.json was changed"
+  [[ ! -L "$physical_home/.codex/hooks.json" ]] || \
+    fail "existing Codex hooks.json was replaced by a link"
+  cmp -s "$hooks_original" "$physical_home/.codex/hooks.json" || \
+    fail "existing Codex hooks.json was changed"
   [[ "$physical_home/.claude/agents/verifier.md" \
     -ef "$FIXTURE_REPO_PHYSICAL/claude/.claude/agents/verifier.md" ]] || \
     fail "Claude agents did not coexist with the existing settings"
+}
+
+test_managed_links_become_machine_local() {
+  local home_dir="$TEST_ROOT/homes/managed-links"
+  local source_hash
+  local physical_home
+  local relative
+
+  source_hash=$(tree_hash "$FIXTURE_REPO/codex")
+  mkdir -p -- "$home_dir/.claude" "$home_dir/.codex"
+  ln -s -- "$FIXTURE_REPO_PHYSICAL/claude/.claude/settings.json" "$home_dir/.claude/settings.json"
+  ln -s -- "$FIXTURE_REPO_PHYSICAL/codex/.codex/hooks.json" "$home_dir/.codex/hooks.json"
+
+  run_setup_apply "$home_dir" "$TEST_ROOT/managed-links-first.log"
+  run_setup_apply "$home_dir" "$TEST_ROOT/managed-links-second.log"
+  physical_home=$(cd -- "$home_dir" && pwd -P)
+
+  for relative in .claude/settings.json .codex/hooks.json; do
+    [[ -f "$physical_home/$relative" && ! -L "$physical_home/$relative" ]] || \
+      fail "Stow link $relative was not replaced with a machine-local copy"
+  done
+  cmp -s "$FIXTURE_REPO_PHYSICAL/claude/.claude/settings.json" "$physical_home/.claude/settings.json" || \
+    fail "converted Claude settings.json differs from the tracked file"
+  cmp -s "$FIXTURE_REPO_PHYSICAL/codex/.codex/hooks.json" "$physical_home/.codex/hooks.json" || \
+    fail "converted Codex hooks.json differs from the tracked file"
+  assert_eq "$source_hash" "$(tree_hash "$FIXTURE_REPO/codex")" \
+    "link conversion changed the tracked Codex package"
 }
 
 test_existing_openclaude_config_preserved() {
@@ -799,7 +839,8 @@ run_test() {
 }
 
 run_test "empty HOME apply is physically idempotent" test_empty_home_idempotency
-run_test "existing Claude settings are preserved" test_existing_claude_settings_preserved
+run_test "existing Claude settings and Codex hooks are preserved" test_existing_claude_settings_preserved
+run_test "Stow links to machine-local files become copies" test_managed_links_become_machine_local
 run_test "existing OpenClaude config is preserved" test_existing_openclaude_config_preserved
 run_test "existing opencode config is preserved" test_existing_opencode_config_preserved
 run_test "singular-only real and linked skills copy safely" test_singular_skill_copy

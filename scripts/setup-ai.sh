@@ -12,8 +12,9 @@ readonly CANONICAL_SKILLS="$HOME_DIR/.agents/skills"
 readonly MANAGED_SKILLS="$REPO_DIR/ai/.agents/skills"
 readonly LANGUAGE_STATE="$HOME_DIR/.agents/state/language"
 readonly LANGUAGE_WARMUP_MARKER="$LANGUAGE_STATE/warmup-enabled"
-# Claude rewrites ~/.claude/settings.json at runtime, so it stays machine-local and is only seeded.
+# Clients and tools such as Orca rewrite these at runtime, so they stay machine-local and are only seeded.
 readonly CLAUDE_SETTINGS_IGNORE='\.claude/settings\.json'
+readonly CODEX_HOOKS_IGNORE='\.codex/hooks\.json'
 
 apply=false
 backup_dir=""
@@ -155,7 +156,8 @@ inventory_skills() {
 
 preview_stow() {
   log "GNU Stow simulation for ai, claude, codex, openclaude, and opencode:"
-  stow --simulate --verbose=2 --no-folding --ignore="$CLAUDE_SETTINGS_IGNORE" \
+  stow --simulate --verbose=2 --no-folding \
+    --ignore="$CLAUDE_SETTINGS_IGNORE" --ignore="$CODEX_HOOKS_IGNORE" \
     --dir="$REPO_DIR" --target="$HOME_DIR" ai claude codex openclaude opencode
 }
 
@@ -665,17 +667,33 @@ validate_stow_package_sources() {
 
 apply_stow() {
   log "Applying ai, claude, codex, openclaude, and opencode Stow packages"
-  stow --verbose=1 --no-folding --ignore="$CLAUDE_SETTINGS_IGNORE" \
+  stow --verbose=1 --no-folding \
+    --ignore="$CLAUDE_SETTINGS_IGNORE" --ignore="$CODEX_HOOKS_IGNORE" \
     --dir="$REPO_DIR" --target="$HOME_DIR" ai claude codex openclaude opencode
 }
 
-seed_claude_settings() {
-  local target="$HOME_DIR/.claude/settings.json"
+seed_machine_local_file() {
+  local package="$1"
+  local relative="$2"
+  local source="$REPO_DIR/$package/$relative"
+  local target="$HOME_DIR/$relative"
+
+  # An older setup linked this file into Git, so runtime writes landed in the repository.
+  if [[ -L "$target" && "$target" -ef "$source" ]]; then
+    if [[ "$apply" == true ]]; then
+      cp -p -- "$source" "$target.seed.$$"
+      mv -f -- "$target.seed.$$" "$target"
+      log "Replaced the Stow link $target with a machine-local copy"
+    else
+      log "Would replace the Stow link $target with a machine-local copy"
+    fi
+    return 0
+  fi
 
   [[ -e "$target" || -L "$target" ]] && return 0
   if [[ "$apply" == true ]]; then
-    mkdir -p -- "$HOME_DIR/.claude"
-    cp -p -- "$REPO_DIR/claude/.claude/settings.json" "$target"
+    mkdir -p -- "$(dirname -- "$target")"
+    cp -p -- "$source" "$target"
     log "Seeded machine-local $target from the tracked baseline"
   else
     log "Would seed machine-local $target from the tracked baseline"
@@ -693,7 +711,8 @@ migrate_language_warmup_preference
 point_claude_to_canonical_skills
 retire_obsolete_claude_commands
 retire_obsolete_claude_local_example
-seed_claude_settings
+seed_machine_local_file claude .claude/settings.json
+seed_machine_local_file codex .codex/hooks.json
 
 if [[ "$apply" == true ]]; then
   apply_stow

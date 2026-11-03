@@ -18,12 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/afplay",
-            "args": [
-              "-v",
-              "0.35",
-              "/System/Library/Sounds/Ping.aiff"
-            ],
+            "command": "[ -n \"${ORCA_PANE_KEY-}${ORCA_AGENT_PANE-}\" ] || /usr/bin/afplay -v 0.35 /System/Library/Sounds/Ping.aiff",
             "timeout": 10,
             "async": true
           }
@@ -35,12 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/afplay",
-            "args": [
-              "-v",
-              "0.35",
-              "/System/Library/Sounds/Purr.aiff"
-            ],
+            "command": "[ -n \"${ORCA_PANE_KEY-}${ORCA_AGENT_PANE-}\" ] || /usr/bin/afplay -v 0.35 /System/Library/Sounds/Purr.aiff",
             "timeout": 10,
             "async": true
           }

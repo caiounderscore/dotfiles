@@ -59,7 +59,7 @@ skills, so it is useful for partial integrity checks—not full restoration.
 |---|---|---|---|---|
 | Global instructions | `~/.codex/AGENTS.md` adapter | `~/.claude/CLAUDE.md` adapter | `~/.openclaude/CLAUDE.md` adapter | `~/.config/opencode/AGENTS.md` adapter |
 | Personal skills | Reads `~/.agents/skills` directly | `~/.claude/skills` points to `~/.agents/skills` | OpenClaude-managed skills stay separate | Reads `~/.agents/skills` directly |
-| Session warm-up | Tracked `~/.codex/hooks.json`; marker-gated; review hook trust | User hook in `~/.claude/settings.json`; marker-gated | No tracked startup hook; rely on `CLAUDE.md` plus local user settings | No startup shell hook; invoke `language-warmup` manually |
+| Session warm-up | Machine-local `~/.codex/hooks.json`, seeded from the tracked baseline; marker-gated; review hook trust | User hook in `~/.claude/settings.json`; marker-gated | No tracked startup hook; rely on `CLAUDE.md` plus local user settings | No startup shell hook; invoke `language-warmup` manually |
 | Model/UI/permissions | Existing `~/.codex/config.toml`, unmanaged | Machine-local `~/.claude/settings.json`, seeded once from the tracked baseline because Claude rewrites it at runtime; project-local overrides stay per repository | `~/.openclaude/settings.json`, unmanaged | `~/.config/opencode/opencode.json` or `opencode.jsonc`, unmanaged |
 | Agent roles | Not configured | Opus main session orchestrates; `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` for untyped subagents and workflow agents; tracked `~/.claude/agents/` defines `implementer`, `validator` (Sonnet), and `verifier` (Haiku) | Not configured | Not configured |
 | Kubernetes MCP | Tracked safety profile + global registration helper; cluster paths stay local | Configure separately for Claude if needed | Configure separately in local OpenClaude settings if needed | Configure separately in `opencode.json` or `opencode.jsonc` if needed |
@@ -118,7 +118,9 @@ The preview:
 - excludes repository-managed language skills from generic copying;
 - preserves same-name/different-content conflicts in both roots;
 - simulates Stow for `ai`, `claude`, `codex`, `openclaude`, and `opencode`, skipping
-  `claude/.claude/settings.json`, which it copies only when `~/.claude/settings.json` is missing;
+  `claude/.claude/settings.json` and `codex/.codex/hooks.json`. Clients and tools such as Orca
+  rewrite those at runtime, so each is copied only when the home file is missing, and an older
+  Stow link to it becomes a machine-local copy;
 - shows language-log migration, per-machine warm-up preference migration, backups, and link
   replacements.
 
