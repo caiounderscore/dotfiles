@@ -75,5 +75,8 @@ are the contract between them.
   what survives a `verifier` pass.
 - The local tracker closes work with `Status: resolved`, so `/implement-spec` opens no PR. Push the integration
   branch, write the body with `/pr`, and open the PR in Bitbucket. Do not install `gh` for this.
+- At delivery, append a `## Flow metrics` section to the spec: dates of the first grilling and the PR, Codex and
+  Claude sessions used, questions or fixes about already-decided items, and review findings raised versus those that
+  survived the `verifier`.
 - In `/retro`, also run `/ponytail-debt` and turn shortcuts with no upgrade trigger into `needs-triage` tickets.
 - My gates: scope after grilling, seams in `/to-spec`, the breakdown in `/to-tickets`, review findings, and the merge.
