@@ -26,6 +26,7 @@ claude/.claude/*
 !claude/.claude/hooks/
 claude/.claude/hooks/*
 !claude/.claude/hooks/lang-warmup.sh
+!claude/.claude/hooks/session-health.sh
 !claude/.claude/agents/
 claude/.claude/agents/*
 !claude/.claude/agents/*.md

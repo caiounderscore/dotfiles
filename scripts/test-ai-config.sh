@@ -693,6 +693,45 @@ test_hook_gating() {
   assert_eq "" "$output" "hook ran without the warm-up marker"
 }
 
+test_session_health() {
+  local script="$SOURCE_REPO/claude/.claude/hooks/session-health.sh"
+  local dir="$TEST_ROOT/session-health"
+  local small="$dir/small.jsonl"
+  local long="$dir/long.jsonl"
+  local output
+
+  mkdir -p -- "$dir"
+  printf '%s\n' \
+    '{"type":"assistant","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":40000}}}' \
+    >"$small"
+  printf '%s\n' \
+    '{"type":"system","subtype":"compact_boundary"}' \
+    '{"type":"system","subtype":"compact_boundary"}' \
+    '{"type":"assistant","message":{"usage":{"input_tokens":5,"cache_creation_input_tokens":5000,"cache_read_input_tokens":255000}}}' \
+    >"$long"
+
+  output=$(jq -nc --arg t "$small" '{transcript_path:$t,model:{display_name:"Opus"},workspace:{current_dir:"/w"}}' |
+    bash "$script" statusline)
+  assert_eq "Opus | /w | ctx 41k · 0× compact" "$output" "healthy status line was wrong"
+
+  output=$(jq -nc --arg t "$long" '{transcript_path:$t,model:{display_name:"Opus"},workspace:{current_dir:"/w"}}' |
+    bash "$script" statusline)
+  [[ "$output" == *"⚠ ctx 260k · 2× compact"* ]] || fail "long session was not flagged: $output"
+
+  output=$(jq -nc --arg t "$small" '{source:"compact",transcript_path:$t}' | bash "$script" compact)
+  assert_eq "" "$output" "compact hook warned below the threshold"
+  output=$(jq -nc --arg t "$long" '{source:"startup",transcript_path:$t}' | bash "$script" compact)
+  assert_eq "" "$output" "compact hook ran on a non-compact start"
+  output=$(jq -nc --arg t "$long" '{source:"compact",transcript_path:$t}' | bash "$script" compact)
+  printf '%s\n' "$output" | jq -e '
+    (.systemMessage | contains("2×")) and
+    .hookSpecificOutput.hookEventName == "SessionStart" and
+    (.hookSpecificOutput.additionalContext | contains("Sessão compactada 2×"))
+  ' >/dev/null || fail "compact hook did not warn at the threshold"
+
+  output=$(printf 'not-json' | bash "$script" statusline) || fail "status line failed on invalid input"
+}
+
 test_managed_workspace_hook_context() {
   local home_dir="$TEST_ROOT/homes/workspace-hook"
   local outer_workspace="$TEST_ROOT/workspaces/outer"
@@ -858,6 +897,7 @@ run_test "per-file Claude command links retire selectively" test_per_file_comman
 run_test "real Claude skills directory is refused" test_real_claude_skills_refusal
 run_test "legacy warm-up preference migrates to a marker" test_warmup_marker_migration
 run_test "warm-up hook is marker and event gated" test_hook_gating
+run_test "session health flags long sessions in the status line and after compaction" test_session_health
 run_test "session hook injects the nearest managed workspace contract" test_managed_workspace_hook_context
 run_test "English response gate preserves urgent and protective work" test_language_response_gate_contract
 run_test "folded Claude root is refused before migration" test_folded_claude_root_preflight
