@@ -9,6 +9,9 @@ Matt Pocock's main flow, which `/ask-matt` routes, split across two harnesses: C
 The `.scratch/` files defined by `~/.agents/skills/orca-tickets/issue-tracker.md`, or a repository's own tracker,
 are the contract between them.
 
+Start each fresh session with `/dev-flow` and name the phase. The prompt then carries only the current state (such as
+"the PR is merged") and that session's limits, never this skill's steps.
+
 ## Levels
 
 | Level | Artifact | Harness | Skills |
@@ -88,5 +91,8 @@ are the contract between them.
 - At delivery, append a `## Flow metrics` section to the spec: dates of the first grilling and the PR, Codex and
   Claude sessions used, questions or fixes about already-decided items, and review findings raised versus those that
   survived the `verifier`.
+- After the merge, close out in a fresh session: confirm every workspace commit is on the remote source branch and
+  every ticket is `Status: resolved`, write the flow metrics, run `/retro`, then report whether the workspace can go
+  to `task-workspace-archive` without archiving it, since archiving moves `.scratch/` out of the worktree.
 - In `/retro`, also run `/ponytail-debt` and turn shortcuts with no upgrade trigger into `needs-triage` tickets.
 - My gates: scope after grilling, seams in `/to-spec`, the breakdown in `/to-tickets`, review findings, and the merge.
