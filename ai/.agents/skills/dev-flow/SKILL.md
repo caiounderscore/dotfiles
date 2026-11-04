@@ -32,8 +32,10 @@ are the contract between them.
   `security_lens`, and `reliability_lens` agents on the draft and grill me only on their open questions.
 - After I approve the tickets, move planning drafts outside `.scratch/` (plans, spec drafts, ticket drafts) into
   `.scratch/<feature>/drafts/`, so the spec and tickets are the only planning files left in the workspace.
-- Give each ticket a `Persona:` line (`backend-go`, `platform-engineer`, `devops`, or `implementer`) and a
-  `Risk: high` line when it moves money or touches concurrency, data migrations, or auth.
+- Give each ticket a `Persona:` line with exactly one value: `backend-go`, `platform-engineer`, `devops`, or
+  `implementer`. A ticket that needs two personas is two tickets.
+- Mark a ticket `Risk: high`, followed by a one-line reason, only when its own change moves money or changes
+  concurrency, data migrations, or auth; otherwise write `Risk: normal`. Documentation-only tickets are never high.
 - Plan at `xhigh` effort; use `ultra` only to fan out parallel research.
 
 ## Building in Claude Code
