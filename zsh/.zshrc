@@ -379,6 +379,13 @@ nvm() {
 # sourced last so it wins. See .zshrc.local.example.
 [ -f "$HOME/.zshrc.local" ] && source "$HOME/.zshrc.local"
 
+# Agent shells (Claude Code sets CLAUDECODE) behave like bash: no aliases to collide with helper functions,
+# an unmatched glob passes through literally, and `==` inside [ ] is not `=cmd` expansion.
+if [ -n "${CLAUDECODE-}" ]; then
+  unalias -m '*'
+  setopt no_nomatch no_equals
+fi
+
 # Keep $? clean for the first prompt: without this, a missing .zshrc.local
 # (or any earlier failed check) leaves a stale nonzero status that
 # _exit_status_capture misreports as a real command failure.

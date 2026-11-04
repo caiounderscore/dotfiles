@@ -20,6 +20,7 @@
 - Preserve dirty and untracked work. Never normalize, regenerate, clean, or rewrite unrelated files merely to make the tree look consistent.
 - Commit and push feature and ticket branches without asking. Never push to `main`, `dev`, or a release or production branch, and never force-push, unless I ask.
 - Prefer repository-owned commands. Inspect what a command does before assuming it is read-only, run the smallest relevant check first, and report skipped or unavailable coverage rather than calling a partial pass complete.
+- In shell commands, quote globs passed to tools (`--include='*.go'`), end a read-only chain whose last probe may find nothing with `|| true`, and edit files with the editor tool rather than `sed -i`, whose syntax differs between BSD and GNU.
 - When source-of-truth inputs change, use the repository's generator and review handwritten and generated diffs together; never edit generated output by hand.
 - Convert work into verifiable outcomes. For bugs, reproduce first; for behavior, test inputs; for refactors, verify before and after.
 
