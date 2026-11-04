@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Session health for Claude Code. `statusline` prints model, directory, context size, how full the
+# Session health for Claude Code. `statusline` prints model, directory, context size with how full the
 # auto-compact window is, and the compactions so far with how many were automatic. `compact` runs as a
 # SessionStart hook after a compaction and asks for the phase-boundary decision.
 # Thresholds follow Matt Pocock's ask-matt skill: past the ~150k smart zone, /compact manually at the
@@ -44,13 +44,14 @@ case "$mode" in
   statusline)
     model=$(jq -r '.model.display_name // "Claude"' <<<"$payload" 2>/dev/null) || model="Claude"
     dir=$(jq -r '.workspace.current_dir // empty' <<<"$payload" 2>/dev/null) || dir=""
-    health="ctx $(( tokens / 1000 ))k ($(( tokens * 100 / window ))% of auto-compact) · ${total}× compact (${auto} auto)"
+    health="ctx $(( tokens / 1000 ))k·$(( tokens * 100 / window ))%"
+    (( total > 0 )) && health+=" · ${total}×"
+    (( auto > 0 )) && health+=" (${auto} auto)"
+    advice=""
     if (( tokens >= CRIT_TOKENS )); then
-      advice=" · auto-compact near: /compact now"
+      advice=" · /compact now"
     elif (( tokens >= WARN_TOKENS )); then
-      advice=" · past smart zone: /compact at phase boundary"
-    else
-      advice=" · old decisions are summaries"
+      advice=" · /compact at boundary"
     fi
     case "$level" in
       warn) health=$'\033[33m⚠ '"$health$advice"$'\033[0m' ;;

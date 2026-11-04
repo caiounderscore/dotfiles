@@ -717,19 +717,19 @@ test_session_health() {
   status() { jq -nc --arg t "$1" '{transcript_path:$t,model:{display_name:"Opus"},workspace:{current_dir:"/w"}}' | bash "$script" statusline; }
   compact() { jq -nc --arg t "$1" --arg s "${2:-compact}" '{source:$s,transcript_path:$t}' | bash "$script" compact; }
 
-  assert_eq "Opus | /w | ctx 41k (13% of auto-compact) · 0× compact (0 auto)" "$(status "$dir/small.jsonl")" \
+  assert_eq "Opus | /w | ctx 41k·13%" "$(status "$dir/small.jsonl")" \
     "healthy status line was wrong"
   output=$(status "$dir/warn.jsonl")
-  [[ "$output" == *"⚠ ctx 165k (55% of auto-compact) · 2× compact (0 auto) · past smart zone: /compact at phase boundary"* ]] ||
+  [[ "$output" == *"⚠ ctx 165k·55% · 2× · /compact at boundary"* ]] ||
     fail "session past the smart zone was not flagged: $output"
   output=$(status "$dir/crit.jsonl")
-  [[ "$output" == *"⛔ ctx 260k (86% of auto-compact) · 1× compact (1 auto) · auto-compact near: /compact now"* ]] ||
+  [[ "$output" == *"⛔ ctx 260k·86% · 1× (1 auto) · /compact now"* ]] ||
     fail "session near auto-compact was not flagged critical: $output"
 
-  assert_eq "Opus | /w | ctx 41k (13% of auto-compact) · 1× compact (0 auto)" "$(status "$dir/manual.jsonl")" \
+  assert_eq "Opus | /w | ctx 41k·13% · 1×" "$(status "$dir/manual.jsonl")" \
     "one manual compaction should stay healthy"
   output=$(status "$dir/manual-twice.jsonl")
-  [[ "$output" == *"⚠ ctx 41k (13% of auto-compact) · 2× compact (0 auto) · old decisions are summaries"* ]] ||
+  [[ "$output" == *"⚠ ctx 41k·13% · 2×"* ]] ||
     fail "two manual compactions were not flagged: $output"
 
   assert_eq "" "$(compact "$dir/manual.jsonl")" "compact hook warned after one manual compaction"
