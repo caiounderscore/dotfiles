@@ -696,49 +696,46 @@ test_hook_gating() {
 test_session_health() {
   local script="$SOURCE_REPO/claude/.claude/hooks/session-health.sh"
   local dir="$TEST_ROOT/session-health"
-  local small="$dir/small.jsonl"
-  local long="$dir/long.jsonl"
+  local small='{"type":"assistant","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":40000}}}'
+  local manual='{"type":"system","subtype":"compact_boundary","compactMetadata":{"trigger":"manual"}}'
+  local auto='{"type":"system","subtype":"compact_boundary","compactMetadata":{"trigger":"auto"}}'
   local output
+  export SESSION_HEALTH_COMPACT_WINDOW=300000
 
   mkdir -p -- "$dir"
-  printf '%s\n' \
-    '{"type":"assistant","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":40000}}}' \
-    >"$small"
-  printf '%s\n' \
-    '{"type":"system","subtype":"compact_boundary"}' \
-    '{"type":"system","subtype":"compact_boundary"}' \
+  printf '%s\n' "$small" >"$dir/small.jsonl"
+  printf '%s\n' "$manual" "$manual" \
+    '{"type":"assistant","message":{"usage":{"input_tokens":5,"cache_creation_input_tokens":5000,"cache_read_input_tokens":160000}}}' \
+    >"$dir/warn.jsonl"
+  printf '%s\n' "$auto" \
     '{"type":"assistant","message":{"usage":{"input_tokens":5,"cache_creation_input_tokens":5000,"cache_read_input_tokens":255000}}}' \
-    >"$long"
+    >"$dir/crit.jsonl"
+  printf '%s\n' "$auto" "$small" >"$dir/auto.jsonl"
 
-  output=$(jq -nc --arg t "$small" '{transcript_path:$t,model:{display_name:"Opus"},workspace:{current_dir:"/w"}}' |
-    bash "$script" statusline)
-  assert_eq "Opus | /w | ctx 41k · 0× compact" "$output" "healthy status line was wrong"
+  status() { jq -nc --arg t "$1" '{transcript_path:$t,model:{display_name:"Opus"},workspace:{current_dir:"/w"}}' | bash "$script" statusline; }
+  compact() { jq -nc --arg t "$1" --arg s "${2:-compact}" '{source:$s,transcript_path:$t}' | bash "$script" compact; }
 
-  output=$(jq -nc --arg t "$long" '{transcript_path:$t,model:{display_name:"Opus"},workspace:{current_dir:"/w"}}' |
-    bash "$script" statusline)
-  [[ "$output" == *"⚠ ctx 260k · 2× compact"* ]] || fail "long session was not flagged: $output"
+  assert_eq "Opus | /w | ctx 41k (13% of auto-compact) · 0× auto-compact" "$(status "$dir/small.jsonl")" \
+    "healthy status line was wrong"
+  output=$(status "$dir/warn.jsonl")
+  [[ "$output" == *"⚠ ctx 165k (55% of auto-compact) · 0× auto-compact · past smart zone"* ]] ||
+    fail "session past the smart zone was not flagged: $output"
+  output=$(status "$dir/crit.jsonl")
+  [[ "$output" == *"⛔ ctx 260k (86% of auto-compact) · 1× auto-compact · /compact or /clear at phase boundary"* ]] ||
+    fail "session near auto-compact was not flagged critical: $output"
 
-  printf '%s\n' '{"type":"system","subtype":"compact_boundary"}' '{"type":"system","subtype":"compact_boundary"}' >>"$long"
-  output=$(jq -nc --arg t "$long" '{transcript_path:$t,model:{display_name:"Opus"},workspace:{current_dir:"/w"}}' |
-    bash "$script" statusline)
-  [[ "$output" == *"⛔ ctx 260k · 4× compact · abra nova sessão"* ]] || fail "critical session was not flagged: $output"
-  output=$(jq -nc --arg t "$long" '{source:"compact",transcript_path:$t}' | bash "$script" compact)
-  printf '%s\n' "$output" | jq -e '.hookSpecificOutput.additionalContext | contains("then stop")' >/dev/null ||
+  assert_eq "" "$(compact "$dir/warn.jsonl")" "compact hook warned after a manual compaction"
+  assert_eq "" "$(compact "$dir/auto.jsonl" startup)" "compact hook ran on a non-compact start"
+  compact "$dir/auto.jsonl" | jq -e '
+    (.systemMessage | contains("Auto-compacted 1×")) and
+    .hookSpecificOutput.hookEventName == "SessionStart" and
+    (.hookSpecificOutput.additionalContext | contains("next phase boundary"))
+  ' >/dev/null || fail "compact hook did not warn after an automatic compaction"
+  compact "$dir/crit.jsonl" | jq -e '.hookSpecificOutput.additionalContext | contains("then stop")' >/dev/null ||
     fail "critical compact hook did not ask to stop"
 
-  output=$(jq -nc --arg t "$small" '{source:"compact",transcript_path:$t}' | bash "$script" compact)
-  assert_eq "" "$output" "compact hook warned below the threshold"
-  output=$(jq -nc --arg t "$long" '{source:"startup",transcript_path:$t}' | bash "$script" compact)
-  assert_eq "" "$output" "compact hook ran on a non-compact start"
-  head -n 2 "$long" >"$dir/two.jsonl"; sed -n 3p "$long" >>"$dir/two.jsonl"
-  output=$(jq -nc --arg t "$dir/two.jsonl" '{source:"compact",transcript_path:$t}' | bash "$script" compact)
-  printf '%s\n' "$output" | jq -e '
-    (.systemMessage | contains("2×")) and
-    .hookSpecificOutput.hookEventName == "SessionStart" and
-    (.hookSpecificOutput.additionalContext | contains("Sessão compactada 2×"))
-  ' >/dev/null || fail "compact hook did not warn at the threshold"
-
-  output=$(printf 'not-json' | bash "$script" statusline) || fail "status line failed on invalid input"
+  printf 'not-json' | bash "$script" statusline >/dev/null || fail "status line failed on invalid input"
+  unset SESSION_HEALTH_COMPACT_WINDOW
 }
 
 test_managed_workspace_hook_context() {
