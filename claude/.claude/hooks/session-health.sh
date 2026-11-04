@@ -44,14 +44,15 @@ case "$mode" in
   statusline)
     model=$(jq -r '.model.display_name // "Claude"' <<<"$payload" 2>/dev/null) || model="Claude"
     dir=$(jq -r '.workspace.current_dir // empty' <<<"$payload" 2>/dev/null) || dir=""
-    health="ctx $(( tokens / 1000 ))k·$(( tokens * 100 / window ))%"
-    (( total > 0 )) && health+=" · ${total}×"
+    health="ctx $(( tokens / 1000 ))k ($(( tokens * 100 / window ))% of auto-compact)"
+    (( total == 1 )) && health+=" · 1 compaction"
+    (( total > 1 )) && health+=" · ${total} compactions"
     (( auto > 0 )) && health+=" (${auto} auto)"
     advice=""
     if (( tokens >= CRIT_TOKENS )); then
-      advice=" · /compact now"
+      advice=" · run /compact now"
     elif (( tokens >= WARN_TOKENS )); then
-      advice=" · /compact at boundary"
+      advice=" · past smart zone, /compact at next phase boundary"
     fi
     case "$level" in
       warn) health=$'\033[33m⚠ '"$health$advice"$'\033[0m' ;;
