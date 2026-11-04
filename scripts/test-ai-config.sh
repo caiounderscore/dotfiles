@@ -711,23 +711,33 @@ test_session_health() {
     '{"type":"assistant","message":{"usage":{"input_tokens":5,"cache_creation_input_tokens":5000,"cache_read_input_tokens":255000}}}' \
     >"$dir/crit.jsonl"
   printf '%s\n' "$auto" "$small" >"$dir/auto.jsonl"
+  printf '%s\n' "$manual" "$small" >"$dir/manual.jsonl"
+  printf '%s\n' "$manual" "$manual" "$small" >"$dir/manual-twice.jsonl"
 
   status() { jq -nc --arg t "$1" '{transcript_path:$t,model:{display_name:"Opus"},workspace:{current_dir:"/w"}}' | bash "$script" statusline; }
   compact() { jq -nc --arg t "$1" --arg s "${2:-compact}" '{source:$s,transcript_path:$t}' | bash "$script" compact; }
 
-  assert_eq "Opus | /w | ctx 41k (13% of auto-compact) · 0× auto-compact" "$(status "$dir/small.jsonl")" \
+  assert_eq "Opus | /w | ctx 41k (13% of auto-compact) · 0× compact (0 auto)" "$(status "$dir/small.jsonl")" \
     "healthy status line was wrong"
   output=$(status "$dir/warn.jsonl")
-  [[ "$output" == *"⚠ ctx 165k (55% of auto-compact) · 0× auto-compact · past smart zone"* ]] ||
+  [[ "$output" == *"⚠ ctx 165k (55% of auto-compact) · 2× compact (0 auto) · past smart zone: /compact at phase boundary"* ]] ||
     fail "session past the smart zone was not flagged: $output"
   output=$(status "$dir/crit.jsonl")
-  [[ "$output" == *"⛔ ctx 260k (86% of auto-compact) · 1× auto-compact · /compact or /clear at phase boundary"* ]] ||
+  [[ "$output" == *"⛔ ctx 260k (86% of auto-compact) · 1× compact (1 auto) · auto-compact near: /compact now"* ]] ||
     fail "session near auto-compact was not flagged critical: $output"
 
-  assert_eq "" "$(compact "$dir/warn.jsonl")" "compact hook warned after a manual compaction"
+  assert_eq "Opus | /w | ctx 41k (13% of auto-compact) · 1× compact (0 auto)" "$(status "$dir/manual.jsonl")" \
+    "one manual compaction should stay healthy"
+  output=$(status "$dir/manual-twice.jsonl")
+  [[ "$output" == *"⚠ ctx 41k (13% of auto-compact) · 2× compact (0 auto) · old decisions are summaries"* ]] ||
+    fail "two manual compactions were not flagged: $output"
+
+  assert_eq "" "$(compact "$dir/manual.jsonl")" "compact hook warned after one manual compaction"
+  compact "$dir/manual-twice.jsonl" | jq -e '.systemMessage | contains("Compacted 2× (0 auto)")' >/dev/null ||
+    fail "compact hook did not count manual compactions"
   assert_eq "" "$(compact "$dir/auto.jsonl" startup)" "compact hook ran on a non-compact start"
   compact "$dir/auto.jsonl" | jq -e '
-    (.systemMessage | contains("Auto-compacted 1×")) and
+    (.systemMessage | contains("Compacted 1× (1 auto)")) and
     .hookSpecificOutput.hookEventName == "SessionStart" and
     (.hookSpecificOutput.additionalContext | contains("next phase boundary"))
   ' >/dev/null || fail "compact hook did not warn after an automatic compaction"
