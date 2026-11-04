@@ -718,11 +718,20 @@ test_session_health() {
     bash "$script" statusline)
   [[ "$output" == *"⚠ ctx 260k · 2× compact"* ]] || fail "long session was not flagged: $output"
 
+  printf '%s\n' '{"type":"system","subtype":"compact_boundary"}' '{"type":"system","subtype":"compact_boundary"}' >>"$long"
+  output=$(jq -nc --arg t "$long" '{transcript_path:$t,model:{display_name:"Opus"},workspace:{current_dir:"/w"}}' |
+    bash "$script" statusline)
+  [[ "$output" == *"⛔ ctx 260k · 4× compact · abra nova sessão"* ]] || fail "critical session was not flagged: $output"
+  output=$(jq -nc --arg t "$long" '{source:"compact",transcript_path:$t}' | bash "$script" compact)
+  printf '%s\n' "$output" | jq -e '.hookSpecificOutput.additionalContext | contains("then stop")' >/dev/null ||
+    fail "critical compact hook did not ask to stop"
+
   output=$(jq -nc --arg t "$small" '{source:"compact",transcript_path:$t}' | bash "$script" compact)
   assert_eq "" "$output" "compact hook warned below the threshold"
   output=$(jq -nc --arg t "$long" '{source:"startup",transcript_path:$t}' | bash "$script" compact)
   assert_eq "" "$output" "compact hook ran on a non-compact start"
-  output=$(jq -nc --arg t "$long" '{source:"compact",transcript_path:$t}' | bash "$script" compact)
+  head -n 2 "$long" >"$dir/two.jsonl"; sed -n 3p "$long" >>"$dir/two.jsonl"
+  output=$(jq -nc --arg t "$dir/two.jsonl" '{source:"compact",transcript_path:$t}' | bash "$script" compact)
   printf '%s\n' "$output" | jq -e '
     (.systemMessage | contains("2×")) and
     .hookSpecificOutput.hookEventName == "SessionStart" and
