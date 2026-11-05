@@ -123,6 +123,9 @@ The preview:
   `claude/.claude/settings.json` and `codex/.codex/hooks.json`. Clients and tools such as Orca
   rewrite those at runtime, so each is copied only when the home file is missing, and an older
   Stow link to it becomes a machine-local copy;
+- links each repository skill under `~/.agents/skills` as a whole directory, because Codex skips a
+  skill whose `SKILL.md` is a symlink. Per-file Stow links are backed up and replaced; a skill
+  directory holding anything else is kept and reported;
 - shows language-log migration, per-machine warm-up preference migration, backups, and link
   replacements.
 

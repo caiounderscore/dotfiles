@@ -225,6 +225,13 @@ test_empty_home_idempotency() {
   [[ "$physical_home/.agents/skills/tuicr-review/SKILL.md" \
     -ef "$FIXTURE_REPO_PHYSICAL/ai/.agents/skills/tuicr-review/SKILL.md" ]] || \
     fail "shared tuicr-review skill did not resolve to its canonical source"
+  # Codex skips a skill whose SKILL.md is a symlink, so repository skills link as directories.
+  [[ -L "$physical_home/.agents/skills/dev-flow" && ! -L "$physical_home/.agents/skills/dev-flow/SKILL.md" ]] || \
+    fail "repository skill dev-flow was not linked as a directory"
+  [[ "$physical_home/.agents/skills/dev-flow" -ef "$FIXTURE_REPO_PHYSICAL/ai/.agents/skills/dev-flow" ]] || \
+    fail "dev-flow directory link did not resolve to its canonical source"
+  [[ -d "$physical_home/.agents/skills" && ! -L "$physical_home/.agents/skills" ]] || \
+    fail "shared skills root was folded"
   [[ -L "$physical_home/.codex/skills/tuicr-review" ]] || \
     fail "Codex tuicr-review adapter was not linked"
   [[ "$physical_home/.codex/skills/tuicr-review/SKILL.md" \
@@ -312,6 +319,37 @@ test_managed_links_become_machine_local() {
     fail "converted Codex hooks.json differs from the tracked file"
   assert_eq "$source_hash" "$(tree_hash "$FIXTURE_REPO/codex")" \
     "link conversion changed the tracked Codex package"
+}
+
+test_skill_directories_replace_per_file_links() {
+  local home_dir="$TEST_ROOT/homes/skill-directories"
+  local skills="$home_dir/.agents/skills"
+  local source="$FIXTURE_REPO_PHYSICAL/ai/.agents/skills"
+  local physical_home
+  local backups
+
+  # Relative links shaped like the ones `stow --no-folding` creates.
+  mkdir -p -- "$skills/dev-flow" "$skills/orca-tickets"
+  ln -s -- ../../../../../repo/ai/.agents/skills/dev-flow/SKILL.md "$skills/dev-flow/SKILL.md"
+  ln -s -- ../../../../../repo/ai/.agents/skills/orca-tickets/SKILL.md "$skills/orca-tickets/SKILL.md"
+  [[ "$skills/dev-flow/SKILL.md" -ef "$source/dev-flow/SKILL.md" ]] || fail "fixture link does not reach the repository skill"
+  printf 'runtime\n' >"$skills/orca-tickets/notes.txt"
+
+  run_setup_apply "$home_dir" "$TEST_ROOT/skill-directories-first.log"
+  run_setup_apply "$home_dir" "$TEST_ROOT/skill-directories-second.log"
+  physical_home=$(cd -- "$home_dir" && pwd -P)
+
+  [[ -L "$physical_home/.agents/skills/dev-flow" && "$physical_home/.agents/skills/dev-flow" -ef "$source/dev-flow" ]] || \
+    fail "per-file dev-flow links did not become a directory link"
+  backups=$(find "$physical_home/.agents/state/backups" -path '*/skills/dev-flow/SKILL.md' -print | count_paths)
+  assert_eq 1 "$backups" "per-file dev-flow links were not backed up exactly once"
+  [[ -d "$physical_home/.agents/skills/orca-tickets" && ! -L "$physical_home/.agents/skills/orca-tickets" ]] || \
+    fail "a skill directory with runtime content was replaced"
+  [[ -f "$physical_home/.agents/skills/orca-tickets/notes.txt" ]] || \
+    fail "runtime content beside the Stow links was lost"
+  assert_contains "$TEST_ROOT/skill-directories-first.log" \
+    "holds content that is not a Stow link" \
+    "the kept orca-tickets directory was not reported"
 }
 
 test_existing_openclaude_config_preserved() {
@@ -903,6 +941,7 @@ run_test() {
 run_test "empty HOME apply is physically idempotent" test_empty_home_idempotency
 run_test "existing Claude settings and Codex hooks are preserved" test_existing_claude_settings_preserved
 run_test "Stow links to machine-local files become copies" test_managed_links_become_machine_local
+run_test "per-file skill links become directory links, mixed directories are kept" test_skill_directories_replace_per_file_links
 run_test "existing OpenClaude config is preserved" test_existing_openclaude_config_preserved
 run_test "existing opencode config is preserved" test_existing_opencode_config_preserved
 run_test "singular-only real and linked skills copy safely" test_singular_skill_copy

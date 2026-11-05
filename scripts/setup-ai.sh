@@ -665,6 +665,81 @@ validate_stow_package_sources() {
   fi
 }
 
+relative_path() {
+  local from="$1"
+  local to="$2"
+  local up=""
+
+  while [[ "$from" != / && "$to" != "$from" && "$to" != "$from"/* ]]; do
+    from=$(dirname -- "$from")
+    up+="../"
+  done
+  if [[ "$from" == / ]]; then
+    printf '%s%s\n' "$up" "${to#/}"
+  else
+    printf '%s%s\n' "$up" "${to#"$from"/}"
+  fi
+}
+
+holds_only_links_into() {
+  local target="$1"
+  local source="$2"
+  local entry
+
+  while IFS= read -r -d '' entry; do
+    [[ -d "$entry" && ! -L "$entry" ]] && continue
+    [[ -L "$entry" ]] || return 1
+    [[ "$(symlink_target_path "$entry")" == "$source/${entry#"$target/"}" ]] || return 1
+  done < <(find "$target" -mindepth 1 -print0)
+}
+
+# Codex skips a skill whose SKILL.md is a symlink, so each repository skill is linked as a whole
+# directory. Stow treats such a link into its package as already stowed, and --no-folding keeps the
+# shared roots real directories.
+link_managed_skill_directories() {
+  local source
+  local name
+  local target
+  local link
+  local saved
+
+  for source in "$MANAGED_SKILLS"/*; do
+    [[ -f "$source/SKILL.md" && ! -L "$source" ]] || continue
+    saved=""
+    name=$(basename -- "$source")
+    target="$CANONICAL_SKILLS/$name"
+    link=$(relative_path "$CANONICAL_SKILLS" "$source")
+
+    if [[ -L "$target" ]]; then
+      [[ "$(symlink_target_path "$target")" == "$source" ]] && continue
+      warn "$target links elsewhere ($(readlink "$target")); leaving it"
+      continue
+    fi
+    if [[ -e "$target" ]] && ! { [[ -d "$target" ]] && holds_only_links_into "$target" "$source"; }; then
+      warn "$target holds content that is not a Stow link into $source; leaving it, so Codex will not load $name"
+      continue
+    fi
+
+    if [[ "$apply" != true ]]; then
+      log "Would link the skill directory $target -> $link"
+      continue
+    fi
+    mkdir -p -- "$CANONICAL_SKILLS"
+    if [[ -e "$target" ]]; then
+      ensure_backup_dir
+      saved="$backup_dir/skills/$name"
+      mkdir -p -- "$(dirname -- "$saved")"
+      mv -- "$target" "$saved"
+      log "Backed up the per-file Stow links $target -> $saved"
+    fi
+    if ! ln -s -- "$link" "$target"; then
+      [[ -z "$saved" ]] || mv -- "$saved" "$target"
+      return 1
+    fi
+    log "Linked the skill directory $target -> $link"
+  done
+}
+
 apply_stow() {
   log "Applying ai, claude, codex, openclaude, and opencode Stow packages"
   stow --verbose=1 --no-folding \
@@ -713,6 +788,8 @@ retire_obsolete_claude_commands
 retire_obsolete_claude_local_example
 seed_machine_local_file claude .claude/settings.json
 seed_machine_local_file codex .codex/hooks.json
+
+link_managed_skill_directories
 
 if [[ "$apply" == true ]]; then
   apply_stow
