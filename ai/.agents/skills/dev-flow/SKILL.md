@@ -9,8 +9,25 @@ Matt Pocock's main flow, which `/ask-matt` routes, split across two harnesses: C
 The `.scratch/` files defined by `~/.agents/skills/orca-tickets/issue-tracker.md`, or a repository's own tracker,
 are the contract between them.
 
-Start each fresh session with `/dev-flow` and name the phase. The prompt then carries only the current state (such as
-"the PR is merged") and that session's limits, never this skill's steps.
+Start each fresh session with `/dev-flow` in Claude Code or `$dev-flow` in Codex, plus whatever I already know. The
+prompt carries only the current state (such as "the PR is merged") and that session's limits, never this skill's steps.
+
+## Intake
+
+Before any phase work, fill this table. Infer each input from the working directory, `.task-workspace.json`, Git
+(current branch, default branch, remotes), and `.scratch/`; then ask only for what is still missing or ambiguous, in
+one numbered round with your inferred or recommended value as the default. When nothing is missing, state the inputs
+in one line and start. Without a named phase, propose one from the state: no spec means planning, unresolved tickets
+mean execution, all tickets resolved mean review, an open PR means delivery, and a merged PR means close-out.
+
+| Phase | Inputs | Usually inferred from |
+|---|---|---|
+| planning | goal; repositories in scope; level (initiative, epic, or single session); constraints or deadline | workspace goal and repositories; level from the goal's size |
+| execution | spec path; integration branch; target branch | the one `.scratch/<feature>/spec.md`; `feat/<feature>`; the default branch |
+| review | spec path; integration branch; target branch | same as execution |
+| peer review | branch; target branch; spec location; extra focus (optional) | current branch; `dev` when it exists; a spec link or path in the PR or ticket |
+| delivery | integration branch; target branch; ticket or issue link (optional) | current branch; target from review |
+| close-out | merged PR link or merge commit | the remote target branch containing the integration branch |
 
 ## Levels
 
@@ -99,7 +116,7 @@ Start each fresh session with `/dev-flow` and name the phase. The prompt then ca
 
 ## Reviewing another developer's branch
 
-The phase is `peer review`; the prompt names only the branch, its target branch, and where the spec lives.
+The phase is `peer review`; Intake gathers the branch, its target branch, and where the spec lives.
 
 - Diff from the merge-base with the fetched target branch. Read a spec in a private Bitbucket repository from a local
   checkout with `git -C <checkout> fetch origin main` and `git show origin/main:<path>`, never by fetching the URL. If
