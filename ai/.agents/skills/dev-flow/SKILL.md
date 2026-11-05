@@ -96,3 +96,21 @@ Start each fresh session with `/dev-flow` and name the phase. The prompt then ca
   to `task-workspace-archive` without archiving it, since archiving moves `.scratch/` out of the worktree.
 - In `/retro`, also run `/ponytail-debt` and turn shortcuts with no upgrade trigger into `needs-triage` tickets.
 - My gates: scope after grilling, seams in `/to-spec`, the breakdown in `/to-tickets`, review findings, and the merge.
+
+## Reviewing another developer's branch
+
+The phase is `peer review`; the prompt names only the branch, its target branch, and where the spec lives.
+
+- Diff from the merge-base with the fetched target branch. Read a spec in a private Bitbucket repository from a local
+  checkout with `git -C <checkout> fetch origin main` and `git show origin/main:<path>`, never by fetching the URL. If
+  the spec changed after the branch started, say what changed and review against the version the developer had.
+- Review in this order: correctness against the spec (each state and transition, idempotency, redelivery, crash
+  windows, finalizers and cleanup, event order, status); reuse, naming the existing helper, pattern, or reconciler and
+  how much code it would remove; then what can be cut, including work beyond the spec.
+- Apply the `Risk: high` rule to the branch as a whole. Run the review as one workflow when the diff spans several
+  packages or I ask for one; otherwise `/code-review` and `/ponytail-review` are enough.
+- Stay read-only in every repository: no edits, commits, or pushes.
+- Report in Portuguese: a verdict (approve, approve with notes, or request changes), spec coverage per requirement
+  (done, partial, missing, or beyond the spec), confirmed findings ranked by severity with file:line, failure
+  scenario, and suggestion, and the same findings as comments ready to paste into the Bitbucket PR, in a colleague's
+  tone.
