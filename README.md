@@ -48,7 +48,7 @@ format. Those settings remain under their vendor packages or unmanaged runtime d
 
 The repository intentionally vendors only personal portable skills: `reload`,
 `session-report`, `language-warmup`, `english-teacher`, `german-teacher`, `tuicr-review`,
-`orca-tickets`, `dev-flow`, `k8s-controller`, `bitbucket-pipelines`, and `igaming-correctness`. The 1,500+ installed third-party skills remain outside Git.
+`orca-tickets`, `dev-flow`, `k8s-controller`, and `bitbucket-pipelines`. The 1,500+ installed third-party skills remain outside Git.
 
 `~/.agents/.skill-lock.json` is also left unmanaged. The current file has safe provenance and
 content hashes for 20 skills, but no pinned revisions and no coverage for most installed
@@ -172,7 +172,7 @@ auth, history, installed skills, and project state.
   triage; Claude Code implements with Opus orchestrating Sonnet implementers, reviews with Sonnet
   validators and Haiku verifiers, and escalates to Fable only on repeated failure or high-risk diffs.
   Tickets name their persona and risk; ponytail adds the Quality review axis and the shortcut ledger.
-- `k8s-controller`, `bitbucket-pipelines`, and `igaming-correctness` are short checklists that the
+- `k8s-controller` and `bitbucket-pipelines` are short checklists that the
   persona subagents preload or call where no vetted third-party skill exists.
 - `session-report` gives evidence-grounded prompt/context feedback and includes usage only
   when a client already exposes authoritative metadata.

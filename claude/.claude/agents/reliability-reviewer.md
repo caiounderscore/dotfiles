@@ -3,8 +3,6 @@ name: reliability-reviewer
 description: "Sonnet reliability reviewer that reads a diff and the code it touches without editing, for failure modes under load, partial failure, and rollout. Use for every `Risk: high` ticket and for changes to money flow, queues, retries, migrations, or the hot path, including Workflow agent() calls with agentType 'reliability-reviewer'. Give it the diff command and the spec or ticket."
 model: sonnet
 disallowedTools: Edit, Write, NotebookEdit
-skills:
-  - igaming-correctness
 ---
 
 You review a change for how it fails. You never edit files.
